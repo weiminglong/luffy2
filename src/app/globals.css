@@ -3,25 +3,68 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: dark;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html, body {
+  background: #0A0B0F;
+  color: #F0F0F5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(108,92,231,0.08), transparent),
+    #0A0B0F;
+  min-height: 100vh;
 }
 
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: #0A0B0F; }
+::-webkit-scrollbar-thumb { background: #2A2D42; border-radius: 5px; }
+::-webkit-scrollbar-thumb:hover { background: #3A3D52; }
+
 @layer utilities {
-  .text-balance {
-    text-wrap: balance;
+  .text-balance { text-wrap: balance; }
+  .glass {
+    background: rgba(18, 19, 26, 0.6);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
   }
+  .card {
+    background: #12131A;
+    border: 1px solid #1E2030;
+    border-radius: 16px;
+  }
+  .card-hover {
+    transition: all 0.2s ease;
+  }
+  .card-hover:hover {
+    background: #1A1B24;
+    border-color: #2A2D42;
+  }
+  .glow-tempo {
+    box-shadow: 0 0 40px -10px rgba(108,92,231,0.4);
+  }
+  .num {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+}
+
+.recharts-default-tooltip {
+  background: rgba(18, 19, 26, 0.95) !important;
+  border: 1px solid #2A2D42 !important;
+  border-radius: 12px !important;
+  backdrop-filter: blur(10px);
+}
+.recharts-tooltip-label,
+.recharts-tooltip-item {
+  color: #F0F0F5 !important;
+}
+
+.dot-grid-bg {
+  background-image: radial-gradient(circle at 1px 1px, rgba(108,92,231,0.18) 1px, transparent 0);
+  background-size: 24px 24px;
 }
