@@ -2,7 +2,14 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, ReactNode } from "react";
-import { ArrowRight, ExternalLink } from "lucide-react";
+import {
+  ArrowRight,
+  ExternalLink,
+  Repeat,
+  Users,
+  Layers,
+  DollarSign,
+} from "lucide-react";
 import { useRangeStore } from "@/lib/store";
 import { fetcher } from "@/lib/fetcher";
 import { fmtUSD, fmtNum, shortAddr } from "@/lib/utils";
@@ -125,11 +132,33 @@ export function DexSection() {
   });
 
   const ts = activityQ.data?.timeseries ?? [];
-  const pairs = activityQ.data?.top_pairs ?? [];
-  const swaps = swapsQ.data?.swaps ?? [];
+  // Defensive client-side filter: drop any pair containing empty, UNKNOWN or
+  // malformed token symbols so the leaderboard stays clean.
+  const pairs = useMemo(
+    () =>
+      (activityQ.data?.top_pairs ?? []).filter((p) => {
+        if (!p.pair) return false;
+        const [a, b] = p.pair.split("/");
+        const bad = (s?: string) =>
+          !s || s.trim() === "" || s === "UNKNOWN" || s === "?";
+        return !bad(a) && !bad(b);
+      }),
+    [activityQ.data]
+  );
+  const swaps = useMemo(
+    () =>
+      (swapsQ.data?.swaps ?? []).filter(
+        (s) =>
+          s.token_in_symbol &&
+          s.token_out_symbol &&
+          s.token_in_symbol !== "UNKNOWN" &&
+          s.token_out_symbol !== "UNKNOWN"
+      ),
+    [swapsQ.data]
+  );
 
-  const activityLoading = activityQ.isLoading;
-  const swapsLoading = swapsQ.isLoading;
+  const activityLoading = activityQ.isPending;
+  const swapsLoading = swapsQ.isPending;
 
   // KPIs
   const latest = ts[ts.length - 1];
@@ -178,7 +207,13 @@ export function DexSection() {
 
   return (
     <section className="space-y-8">
-      <SectionHeader id="dex" eyebrow="DEX" title="DEX Activity" />
+      <SectionHeader
+        id="dex"
+        eyebrow="DEX"
+        title="DEX Activity"
+        subtitle="Swap volume, unique traders, and liquidity mix on Tempo-native DEX protocols."
+        accent="tempo"
+      />
 
       {/* KPI strip */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -194,6 +229,7 @@ export function DexSection() {
               value={latest?.swaps ?? 0}
               format={(n) => fmtNum(n)}
               accent="tempo"
+              icon={<Repeat className="h-4 w-4" />}
             />
             <KPICard
               variant="compact"
@@ -201,6 +237,7 @@ export function DexSection() {
               value={latest?.traders ?? 0}
               format={(n) => fmtNum(n)}
               accent="positive"
+              icon={<Users className="h-4 w-4" />}
             />
             <KPICard
               variant="compact"
@@ -208,6 +245,7 @@ export function DexSection() {
               value={activePairsCount}
               format={(n) => fmtNum(n)}
               accent="stablecoin"
+              icon={<Layers className="h-4 w-4" />}
             />
             <KPICard
               variant="compact"
@@ -215,6 +253,7 @@ export function DexSection() {
               value={totalVolume}
               format={(n) => fmtUSD(n)}
               accent="tempo"
+              icon={<DollarSign className="h-4 w-4" />}
             />
           </>
         )}

@@ -5,6 +5,8 @@ import { Sidebar } from "@/components/ui/Sidebar";
 import { HeroSection } from "@/components/sections/HeroSection";
 import { BenchmarkSection } from "@/components/sections/BenchmarkSection";
 import { ChainHealthSection } from "@/components/sections/ChainHealthSection";
+import { EcosystemActivitySection } from "@/components/sections/EcosystemActivitySection";
+import { RetentionSection } from "@/components/sections/RetentionSection";
 import { StablecoinSection } from "@/components/sections/StablecoinSection";
 import { DexSection } from "@/components/sections/DexSection";
 import { MppSection } from "@/components/sections/MppSection";
@@ -21,6 +23,8 @@ export default function Page() {
           <HeroSection />
           <BenchmarkSection />
           <ChainHealthSection />
+          <EcosystemActivitySection />
+          <RetentionSection />
           <StablecoinSection />
           <DexSection />
           <MppSection />

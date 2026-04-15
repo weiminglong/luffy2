@@ -72,11 +72,23 @@ export function RankingTable<T extends Record<string, unknown>>({
           {data.map((row, i) => (
             <tr
               key={rowKey ? rowKey(row, i) : String(i)}
-              className="group border-b border-border-subtle/50 last:border-0 transition-colors hover:bg-bg-card-hover/50"
+              className={cn(
+                "group border-b border-border-subtle/40 last:border-0 transition-colors hover:bg-bg-card-hover/50",
+                i % 2 === 1 && "bg-bg-card-hover/[0.035]"
+              )}
             >
               {showRank ? (
-                <td className="px-3 py-3 text-text-muted num text-xs">
-                  {i + 1}
+                <td className="px-3 py-3 text-text-muted num text-xs tabular-nums">
+                  <span
+                    className={cn(
+                      "inline-flex h-5 w-5 items-center justify-center rounded-md text-[11px] font-semibold",
+                      i < 3
+                        ? "bg-accent-tempo/15 text-accent-tempo"
+                        : "text-text-muted"
+                    )}
+                  >
+                    {i + 1}
+                  </span>
                 </td>
               ) : null}
               {columns.map((col) => {
@@ -94,7 +106,7 @@ export function RankingTable<T extends Record<string, unknown>>({
                     className={cn(
                       "px-3 py-3 align-middle",
                       col.align === "right" ? "text-right" : "text-left",
-                      numLike && "font-mono num text-text-primary"
+                      numLike && "font-mono num text-text-primary tabular-nums"
                     )}
                   >
                     {col.barKey ? (
@@ -102,9 +114,9 @@ export function RankingTable<T extends Record<string, unknown>>({
                         <div className="flex items-center justify-between gap-2">
                           <span>{content}</span>
                         </div>
-                        <div className="h-1 w-full rounded-full bg-bg-card-hover/60 overflow-hidden">
+                        <div className="h-2 w-full rounded-full bg-bg-card-hover/60 overflow-hidden">
                           <div
-                            className="h-full rounded-full bg-accent-tempo transition-all duration-500"
+                            className="h-full rounded-full transition-all duration-700"
                             style={{
                               width: `${Math.min(
                                 100,
@@ -112,6 +124,8 @@ export function RankingTable<T extends Record<string, unknown>>({
                                   (barMaxByKey[col.barKey] || 1)) *
                                   100
                               )}%`,
+                              background:
+                                "linear-gradient(90deg, rgba(108,92,231,0.7), rgba(108,92,231,1))",
                             }}
                           />
                         </div>

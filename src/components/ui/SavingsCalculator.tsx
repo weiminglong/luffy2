@@ -114,24 +114,54 @@ export function SavingsCalculator({
       .catch(() => undefined);
   };
 
+  const ethTotal = competitorTotals.ethereum ?? 0;
+  const savingsVsEthAbs = Math.max(0, ethTotal - tempoTotal);
+  const savingsVsEthX =
+    tempoTotal > 0 && ethTotal > 0 ? ethTotal / tempoTotal : 0;
+
   return (
     <Card className={cn("space-y-6", className)} gradient>
+      <div>
+        <div className="text-[11px] font-semibold uppercase tracking-wider text-accent-tempo mb-1">
+          Savings Calculator
+        </div>
+        <h3 className="font-display text-lg font-semibold text-text-primary">
+          Your monthly spend
+        </h3>
+        <p className="text-xs text-text-muted mt-1">
+          Estimate cost across chains based on your transaction mix.
+        </p>
+      </div>
+
       <div className="space-y-5">
         {SLIDERS.map((s) => {
           const raw = sliders[s.key] ?? 0;
           const txValue = txs[s.key] ?? 0;
           return (
             <div key={s.key}>
-              <div className="flex items-end justify-between mb-2">
-                <div>
+              <div className="flex items-end justify-between mb-2 gap-3">
+                <div className="min-w-0">
                   <div className="text-sm font-medium text-text-primary">
                     {s.label}
                   </div>
                   <div className="text-xs text-text-muted">{s.description}</div>
                 </div>
-                <div className="font-display text-xl font-semibold text-text-primary num">
-                  {fmtNum(txValue)}
-                </div>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  max={s.max}
+                  value={txValue}
+                  aria-label={`${s.label} exact value`}
+                  onChange={(e) => {
+                    const n = Math.max(0, Math.min(s.max, Number(e.target.value) || 0));
+                    setSliders((prev) => ({
+                      ...prev,
+                      [s.key]: txToSlider(n, s.max),
+                    }));
+                  }}
+                  className="w-28 shrink-0 rounded-lg border border-border-subtle bg-bg-card px-2.5 py-1 text-right font-display text-lg font-semibold text-text-primary tabular-nums focus:outline-none focus:border-accent-tempo focus:ring-1 focus:ring-accent-tempo/40"
+                />
               </div>
               <input
                 type="range"
@@ -160,21 +190,59 @@ export function SavingsCalculator({
         })}
       </div>
 
+      {/* Hero savings stat */}
+      <motion.div
+        key={`hero-${savingsVsEthAbs.toFixed(2)}`}
+        initial={{ opacity: 0.6, y: 4 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="relative overflow-hidden rounded-2xl border border-accent-tempo/40 bg-accent-tempo/10 p-5"
+      >
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -top-16 -right-16 h-40 w-40 rounded-full bg-accent-tempo/40 blur-3xl"
+        />
+        <div className="relative">
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-accent-tempo">
+            You save vs Ethereum
+          </div>
+          <div className="mt-2 flex items-baseline gap-3 flex-wrap">
+            <span className="font-display text-[32px] leading-none font-bold text-text-primary num tabular-nums">
+              {fmtUSD(savingsVsEthAbs)}
+            </span>
+            {savingsVsEthX > 0 ? (
+              <span className="rounded-full bg-accent-positive/15 px-2 py-0.5 text-xs font-semibold text-accent-positive num">
+                {savingsVsEthX >= 10
+                  ? `${fmtNum(savingsVsEthX, { decimals: 0 })}× cheaper`
+                  : `${savingsVsEthX.toFixed(1)}× cheaper`}
+              </span>
+            ) : null}
+          </div>
+          <div className="mt-1 text-xs text-text-muted">
+            Every month, at {fmtNum(totalTx)} transactions
+          </div>
+        </div>
+      </motion.div>
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <motion.div
           key={`tempo-${tempoTotal.toFixed(2)}`}
           initial={{ opacity: 0.6, y: 4 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
-          className="rounded-2xl border border-accent-tempo/40 bg-accent-tempo/10 p-4 glow-tempo"
+          className="rounded-2xl border border-accent-tempo/40 bg-accent-tempo/5 p-4"
         >
-          <div className="text-[11px] font-semibold uppercase tracking-wider text-accent-tempo">
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-accent-tempo">
+            <span
+              className="h-2 w-2 rounded-full bg-accent-tempo"
+              aria-hidden
+            />
             Tempo
           </div>
-          <div className="font-display text-2xl font-bold text-text-primary num mt-2">
+          <div className="font-display text-2xl font-bold text-text-primary num mt-2 tabular-nums">
             {fmtUSD(tempoTotal)}
           </div>
-          <div className="text-[11px] text-text-muted mt-1">
+          <div className="text-[11px] text-text-muted mt-1 num">
             {fmtUSD(tempoCost, { decimals: 4 })} / tx
           </div>
         </motion.div>
@@ -192,12 +260,17 @@ export function SavingsCalculator({
               className="rounded-2xl border border-border-subtle bg-bg-card p-4"
             >
               <div
-                className="text-[11px] font-semibold uppercase tracking-wider"
+                className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider"
                 style={{ color }}
               >
+                <span
+                  className="h-2 w-2 rounded-full"
+                  style={{ backgroundColor: color }}
+                  aria-hidden
+                />
                 {capitalize(chain)}
               </div>
-              <div className="font-display text-2xl font-bold text-text-primary num mt-2">
+              <div className="font-display text-2xl font-bold text-text-primary num mt-2 tabular-nums">
                 {fmtUSD(total)}
               </div>
               <div className="text-[11px] text-accent-positive mt-1 font-medium num">

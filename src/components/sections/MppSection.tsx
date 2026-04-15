@@ -2,7 +2,13 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, ReactNode } from "react";
-import { ArrowRight } from "lucide-react";
+import {
+  ArrowRight,
+  DollarSign,
+  Receipt,
+  Store,
+  Ticket,
+} from "lucide-react";
 import { useRangeStore } from "@/lib/store";
 import { fetcher } from "@/lib/fetcher";
 import { fmtUSD, fmtNum, shortAddr } from "@/lib/utils";
@@ -249,16 +255,18 @@ export function MppSection() {
     },
   ];
 
-  const metricsLoading = metricsQ.isLoading;
-  const merchantsLoading = merchantsQ.isLoading;
-  const feedLoading = feedQ.isLoading;
+  const metricsLoading = metricsQ.isPending;
+  const merchantsLoading = merchantsQ.isPending;
+  const feedLoading = feedQ.isPending;
 
   return (
     <section className="space-y-8">
       <SectionHeader
         id="merchants"
-        eyebrow="Payments (MPP)"
+        eyebrow="Payments · MPP"
         title="Merchant Payment Protocol"
+        subtitle="Real-world payments settled on-chain — stablecoin volume, merchant count, and live transfer feed."
+        accent="stablecoin"
       />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -274,6 +282,7 @@ export function MppSection() {
               value={latestVolume}
               format={(n) => fmtUSD(n)}
               accent="tempo"
+              icon={<DollarSign className="h-4 w-4" />}
             />
             <KPICard
               variant="compact"
@@ -281,6 +290,7 @@ export function MppSection() {
               value={latestCount}
               format={(n) => fmtNum(n)}
               accent="positive"
+              icon={<Receipt className="h-4 w-4" />}
             />
             <KPICard
               variant="compact"
@@ -288,6 +298,7 @@ export function MppSection() {
               value={activeMerchantsLatest}
               format={(n) => fmtNum(n)}
               accent="stablecoin"
+              icon={<Store className="h-4 w-4" />}
             />
             <KPICard
               variant="compact"
@@ -295,6 +306,7 @@ export function MppSection() {
               value={avgTicket}
               format={(n) => fmtUSD(n, { decimals: 2 })}
               accent="tempo"
+              icon={<Ticket className="h-4 w-4" />}
             />
           </>
         )}

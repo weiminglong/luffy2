@@ -40,9 +40,21 @@ export async function GET(req: NextRequest) {
       ORDER BY inflow_usd DESC
     `;
 
-    const [tsRows, byTokenRows] = await Promise.all([
+    // Authoritative current L2 supply per token: sum of all-time net_flow_usd.
+    // The table's cumulative_net_flow_usd column is unreliable (non-monotonic
+    // resets). Summing net_flow directly is the truth.
+    const currentSupplySql = `
+      SELECT token_symbol, SUM(net_flow_usd) AS current_supply_usd
+      FROM agent.tempo_bridge_flows_daily
+      WHERE ${NOT_UNKNOWN}
+        AND token_symbol IN ${STABLES}
+      GROUP BY token_symbol
+    `;
+
+    const [tsRows, byTokenRows, supplyRows] = await Promise.all([
       querySurf(tsSql, { ttl: 3600 }),
       querySurf(byTokenSql, { ttl: 3600 }),
+      querySurf(currentSupplySql, { ttl: 3600 }),
     ]);
 
     const timeseries = tsRows.map((r) => ({
@@ -66,6 +78,15 @@ export async function GET(req: NextRequest) {
     const total_outflow_usd = by_token.reduce((s, r) => s + r.outflow_usd, 0);
     const net_flow_usd = total_inflow_usd - total_outflow_usd;
 
+    const current_supply_by_token = supplyRows.map((r) => ({
+      token_symbol: str(r.token_symbol),
+      current_supply_usd: Math.max(0, num(r.current_supply_usd)),
+    }));
+    const total_current_supply_usd = current_supply_by_token.reduce(
+      (s, r) => s + r.current_supply_usd,
+      0
+    );
+
     const freshness = timeseries.length ? timeseries[timeseries.length - 1].block_date : undefined;
     return jsonOK(
       {
@@ -74,6 +95,8 @@ export async function GET(req: NextRequest) {
         total_inflow_usd,
         total_outflow_usd,
         net_flow_usd,
+        current_supply_by_token,
+        total_current_supply_usd,
       },
       range,
       freshness

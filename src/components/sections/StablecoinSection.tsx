@@ -10,9 +10,10 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/Card";
 import { KPICard } from "@/components/ui/KPICard";
 import { TimeseriesChart } from "@/components/charts/TimeseriesChart";
 import { DonutChart } from "@/components/charts/DonutChart";
-import { FlowSankey } from "@/components/charts/FlowSankey";
+import { BridgeFlowViz } from "@/components/charts/BridgeFlowViz";
 import { RankingTable, RankingColumn } from "@/components/ui/RankingTable";
 import { SkeletonCard } from "@/components/ui/SkeletonCard";
+import { Coins, Landmark, ArrowLeftRight, Users } from "lucide-react";
 
 interface SupplyTs {
   block_date: string;
@@ -73,6 +74,11 @@ interface BridgeData {
   total_inflow_usd: number;
   total_outflow_usd: number;
   net_flow_usd: number;
+  current_supply_by_token: Array<{
+    token_symbol: string;
+    current_supply_usd: number;
+  }>;
+  total_current_supply_usd: number;
 }
 
 interface Envelope<T> {
@@ -159,32 +165,36 @@ export function StablecoinSection() {
     select: (r) => r.data,
   });
 
-  const supplyLoading = supplyQ.isLoading;
-  const transfersLoading = transfersQ.isLoading;
-  const bridgeLoading = bridgeQ.isLoading;
+  const supplyLoading = supplyQ.isPending;
+  const transfersLoading = transfersQ.isPending;
+  const bridgeLoading = bridgeQ.isPending;
 
-  // KPI strip values
-  const totalSupply = supplyQ.data?.latest_total_supply_usd ?? 0;
+  // KPI strip values. Total supply is derived from all-time bridge net flows
+  // (authoritative) rather than the stablecoin_supply table which
+  // under-reports.
+  const totalSupply = bridgeQ.data?.total_current_supply_usd ?? 0;
   const netBridge = bridgeQ.data?.net_flow_usd ?? 0;
 
   const latestTransfer = transfersQ.data?.timeseries?.slice(-1)[0];
   const latestTransferTxs = latestTransfer?.tx_count ?? 0;
   const latestUniqueSenders = latestTransfer?.unique_senders ?? 0;
 
-  // Donut: supply by token
+  // Donut: supply by token from bridge-derived current balances.
   const donutData = useMemo(
     () =>
-      (supplyQ.data?.by_token ?? []).map((t) => ({
+      (bridgeQ.data?.current_supply_by_token ?? []).map((t) => ({
         name: t.token_symbol,
-        value: Math.max(0, t.cumulative_supply_usd),
+        value: Math.max(0, t.current_supply_usd),
         color: colorForToken(t.token_symbol),
       })),
-    [supplyQ.data]
+    [bridgeQ.data]
   );
 
-  // Cumulative supply over time (pivot by token, running sum)
+  // Cumulative supply over time, derived from bridge daily net flows
+  // (authoritative). Pivot by token and compute a running sum, clamped at 0
+  // so a short-term negative blip cannot flip the stack.
   const cumulativeData = useMemo(() => {
-    const ts = supplyQ.data?.timeseries ?? [];
+    const ts = bridgeQ.data?.timeseries ?? [];
     if (ts.length === 0) return { rows: [], tokens: [] as string[] };
     const dates = Array.from(new Set(ts.map((r) => r.block_date))).sort();
     const tokens = Array.from(new Set(ts.map((r) => r.token_symbol)));
@@ -195,63 +205,29 @@ export function StablecoinSection() {
     for (const r of ts) {
       byDateByToken[r.block_date] ??= {};
       byDateByToken[r.block_date][r.token_symbol] =
-        (byDateByToken[r.block_date][r.token_symbol] ?? 0) +
-        r.net_supply_change_usd;
+        (byDateByToken[r.block_date][r.token_symbol] ?? 0) + r.net_flow_usd;
     }
     const rows = dates.map((d) => {
       const row: Record<string, string | number> = { block_date: d };
       for (const t of tokens) {
         running[t] += byDateByToken[d]?.[t] ?? 0;
-        row[t] = running[t];
+        row[t] = Math.max(0, running[t]);
       }
       return row;
     });
     return { rows, tokens };
-  }, [supplyQ.data]);
+  }, [bridgeQ.data]);
 
   // Transfers timeseries
   const transfersTs = transfersQ.data?.timeseries ?? [];
 
-  // Bridge: sankey data + net daily
-  const sankeyData = useMemo(() => {
-    const byToken = bridgeQ.data?.by_token ?? [];
-    if (byToken.length === 0) return { nodes: [], links: [] };
-    const externalIdx = 0;
-    const tempoIdx = 1;
-    const nodes: { name: string; color?: string }[] = [
-      { name: "External", color: "#8B8D9E" },
-      { name: "Tempo", color: "#6C5CE7" },
-    ];
-    const tokenIdx: Record<string, number> = {};
-    byToken.forEach((t) => {
-      tokenIdx[t.token_symbol] = nodes.length;
-      nodes.push({ name: t.token_symbol, color: colorForToken(t.token_symbol) });
-    });
-    const links: { source: number; target: number; value: number }[] = [];
-    for (const t of byToken) {
-      if (t.inflow_usd > 0) {
-        links.push({
-          source: externalIdx,
-          target: tokenIdx[t.token_symbol],
-          value: t.inflow_usd,
-        });
-        links.push({
-          source: tokenIdx[t.token_symbol],
-          target: tempoIdx,
-          value: t.inflow_usd,
-        });
-      }
-      if (t.outflow_usd > 0) {
-        // outflow goes Tempo → token → External, represented as token→External only
-        links.push({
-          source: tokenIdx[t.token_symbol],
-          target: externalIdx,
-          value: t.outflow_usd,
-        });
-      }
-    }
-    return { nodes, links };
-  }, [bridgeQ.data]);
+  const bridgeByToken = useMemo(
+    () =>
+      (bridgeQ.data?.by_token ?? []).filter(
+        (t) => t.inflow_usd > 0 || t.outflow_usd > 0
+      ),
+    [bridgeQ.data]
+  );
 
   const dailyNetFlow = useMemo(() => {
     const rows = bridgeQ.data?.timeseries ?? [];
@@ -300,6 +276,8 @@ export function StablecoinSection() {
         id="stablecoins"
         eyebrow="Stablecoins"
         title="Stablecoin Ecosystem"
+        subtitle="Supply, bridge flows, and on-chain transfers across USDC.e, pathUSD, and USDS."
+        accent="stablecoin"
       />
 
       {/* KPI strip */}
@@ -316,6 +294,7 @@ export function StablecoinSection() {
               value={totalSupply}
               format={(n) => fmtUSD(n)}
               accent="stablecoin"
+              icon={<Coins className="h-4 w-4" />}
             />
             <KPICard
               variant="compact"
@@ -323,6 +302,7 @@ export function StablecoinSection() {
               value={netBridge}
               format={(n) => fmtUSD(n)}
               accent={netBridge >= 0 ? "positive" : "negative"}
+              icon={<Landmark className="h-4 w-4" />}
             />
             <KPICard
               variant="compact"
@@ -330,6 +310,7 @@ export function StablecoinSection() {
               value={latestTransferTxs}
               format={(n) => fmtNum(n)}
               accent="tempo"
+              icon={<ArrowLeftRight className="h-4 w-4" />}
             />
             <KPICard
               variant="compact"
@@ -337,6 +318,7 @@ export function StablecoinSection() {
               value={latestUniqueSenders}
               format={(n) => fmtNum(n)}
               accent="positive"
+              icon={<Users className="h-4 w-4" />}
             />
           </>
         )}
@@ -409,20 +391,20 @@ export function StablecoinSection() {
               <div>
                 <CardTitle>Bridge Flows</CardTitle>
                 <p className="text-xs text-text-muted mt-1">
-                  Token movement between Tempo and external chains
+                  External ↔ Tempo stablecoin bridge volume, by token
                 </p>
               </div>
             </CardHeader>
-            {sankeyData.nodes.length === 0 ? (
+            {bridgeByToken.length === 0 ? (
               <div className="py-10 text-center text-sm text-text-muted">
                 No bridge data in this range.
               </div>
             ) : (
               <div className="space-y-6">
-                <FlowSankey
-                  data={sankeyData}
+                <BridgeFlowViz
+                  data={bridgeByToken}
                   valueFormatter={(n) => fmtUSD(n)}
-                  height={320}
+                  colorForToken={colorForToken}
                 />
                 <div className="pt-4 border-t border-border-subtle">
                   <div className="text-[11px] font-semibold uppercase tracking-wider text-text-muted mb-3">

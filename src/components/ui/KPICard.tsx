@@ -84,28 +84,36 @@ export function KPICard({
     return (
       <div
         className={cn(
-          "card card-hover rounded-2xl border border-border-subtle p-4 flex items-center justify-between gap-4",
+          "card card-hover relative rounded-2xl border border-border-subtle p-4 pl-[14px] flex items-center justify-between gap-3 overflow-hidden",
           className
         )}
       >
-        <div className="flex items-center gap-3 min-w-0">
+        <span
+          aria-hidden
+          className="absolute left-0 top-3 bottom-3 w-[3px] rounded-full"
+          style={{ backgroundColor: color, opacity: 0.85 }}
+        />
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
           {icon ? (
             <div
-              className="flex h-8 w-8 items-center justify-center rounded-lg bg-bg-card-hover text-text-secondary"
-              style={{ color }}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+              style={{
+                backgroundColor: `${color}1A`,
+                color,
+              }}
               aria-hidden
             >
               {icon}
             </div>
           ) : null}
-          <div className="min-w-0">
-            <div className="text-[11px] font-medium uppercase tracking-wider text-text-muted truncate">
+          <div className="min-w-0 flex-1">
+            <div className="text-[11px] font-medium uppercase tracking-wider text-text-secondary truncate">
               {label}
             </div>
             <div
               className={cn(
-                "font-display font-semibold text-text-primary num mt-0.5",
-                valueSizes.compact
+                "font-display font-semibold text-text-primary num mt-0.5 truncate",
+                "text-[22px] leading-[1.15]"
               )}
             >
               {isNumeric ? (
@@ -132,18 +140,25 @@ export function KPICard({
       )}
     >
       {variant === "hero" ? (
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full opacity-40 blur-3xl"
-          style={{ backgroundColor: color }}
-        />
+        <>
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full opacity-40 blur-3xl"
+            style={{ backgroundColor: color }}
+          />
+          <span
+            aria-hidden
+            className="absolute left-0 top-6 bottom-6 w-[3px] rounded-full"
+            style={{ backgroundColor: color }}
+          />
+        </>
       ) : null}
 
       <div className="relative flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             {icon ? (
-              <span className="text-text-muted" style={{ color }} aria-hidden>
+              <span style={{ color }} aria-hidden>
                 {icon}
               </span>
             ) : null}
@@ -166,9 +181,13 @@ export function KPICard({
           </div>
 
           {(delta !== undefined || deltaLabel) && (
-            <div className="mt-3 flex items-center gap-2">
+            <div className="mt-4 flex items-center gap-2 flex-wrap">
               {delta !== undefined ? (
-                <DeltaBadge value={delta} inverse={deltaInverse} />
+                <DeltaBadge
+                  value={delta}
+                  inverse={deltaInverse}
+                  size={variant === "hero" ? "md" : "sm"}
+                />
               ) : null}
               {deltaLabel ? (
                 <span className="text-xs text-text-muted">{deltaLabel}</span>
@@ -183,8 +202,8 @@ export function KPICard({
               data={sparkline}
               color={color}
               type="area"
-              width={variant === "hero" ? 96 : 72}
-              height={variant === "hero" ? 36 : 28}
+              width={variant === "hero" ? 110 : 72}
+              height={variant === "hero" ? 44 : 28}
             />
           </div>
         ) : null}

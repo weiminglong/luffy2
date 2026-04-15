@@ -1,22 +1,38 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, ReactNode } from "react";
+import {
+  LayoutDashboard,
+  Gauge,
+  Activity,
+  Boxes,
+  UsersRound,
+  Coins,
+  ArrowLeftRight,
+  Store,
+  Send,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface SidebarItem {
   id: string;
   label: string;
+  icon?: ReactNode;
 }
 
+const ICON_CLASS = "h-3.5 w-3.5 shrink-0";
+
 const DEFAULT_ITEMS: SidebarItem[] = [
-  { id: "hero", label: "Hero" },
-  { id: "cost-benchmark", label: "Cost Benchmark" },
-  { id: "chain-health", label: "Chain Health" },
-  { id: "stablecoins", label: "Stablecoins" },
-  { id: "dex", label: "DEX" },
-  { id: "merchants", label: "Merchants (MPP)" },
-  { id: "transfers", label: "Transfers" },
+  { id: "hero", label: "Overview", icon: <LayoutDashboard className={ICON_CLASS} /> },
+  { id: "cost-benchmark", label: "Benchmark", icon: <Gauge className={ICON_CLASS} /> },
+  { id: "chain-health", label: "Chain Health", icon: <Activity className={ICON_CLASS} /> },
+  { id: "ecosystem-activity", label: "Ecosystem", icon: <Boxes className={ICON_CLASS} /> },
+  { id: "retention", label: "Retention", icon: <UsersRound className={ICON_CLASS} /> },
+  { id: "stablecoins", label: "Stablecoins", icon: <Coins className={ICON_CLASS} /> },
+  { id: "dex", label: "DEX", icon: <ArrowLeftRight className={ICON_CLASS} /> },
+  { id: "merchants", label: "Payments", icon: <Store className={ICON_CLASS} /> },
+  { id: "transfers", label: "Transfers", icon: <Send className={ICON_CLASS} /> },
 ];
 
 interface SidebarProps {
@@ -29,30 +45,43 @@ export function Sidebar({ items = DEFAULT_ITEMS, className }: SidebarProps) {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const elements = items
-      .map((i) => document.getElementById(i.id))
-      .filter((el): el is HTMLElement => el !== null);
+    const ids = items.map((i) => i.id);
 
-    if (elements.length === 0) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        // Pick the entry closest to the top of the viewport that's intersecting.
-        const visible = entries
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
-        if (visible.length > 0) {
-          setActive(visible[0].target.id);
-        }
-      },
-      {
-        rootMargin: "-96px 0px -60% 0px",
-        threshold: [0, 0.25, 0.5],
+    const compute = () => {
+      const anchor = 140;
+      let best: { id: string; dist: number } | null = null;
+      for (const id of ids) {
+        const el = document.getElementById(id);
+        if (!el) continue;
+        const top = el.getBoundingClientRect().top;
+        if (top > anchor) continue;
+        const dist = anchor - top;
+        if (best === null || dist < best.dist) best = { id, dist };
       }
-    );
+      if (best) setActive(best.id);
+      else if (ids.length) setActive(ids[0]);
+    };
 
-    elements.forEach((el) => observer.observe(el));
-    return () => observer.disconnect();
+    compute();
+    let raf = 0;
+    const schedule = () => {
+      if (raf) return;
+      raf = window.requestAnimationFrame(() => {
+        raf = 0;
+        compute();
+      });
+    };
+
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule);
+    const interval = window.setInterval(compute, 250);
+
+    return () => {
+      window.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
+      window.clearInterval(interval);
+      if (raf) cancelAnimationFrame(raf);
+    };
   }, [items]);
 
   const handleClick = (e: React.MouseEvent<HTMLAnchorElement>, id: string) => {
@@ -85,23 +114,31 @@ export function Sidebar({ items = DEFAULT_ITEMS, className }: SidebarProps) {
               href={`#${item.id}`}
               onClick={(e) => handleClick(e, item.id)}
               className={cn(
-                "relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-tempo",
+                "relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-tempo",
                 isActive
-                  ? "text-text-primary bg-bg-card"
+                  ? "text-text-primary bg-bg-card font-semibold"
                   : "text-text-secondary hover:text-text-primary hover:bg-bg-card/60"
               )}
               aria-current={isActive ? "location" : undefined}
             >
               <span
                 className={cn(
-                  "h-1 w-1 rounded-full transition-all",
+                  "rounded-full transition-all shrink-0",
                   isActive
-                    ? "bg-accent-tempo shadow-[0_0_8px_rgba(108,92,231,0.8)]"
-                    : "bg-border-strong"
+                    ? "h-2 w-2 bg-accent-tempo shadow-[0_0_10px_rgba(108,92,231,0.9)]"
+                    : "h-1.5 w-1.5 bg-border-strong"
                 )}
                 aria-hidden
               />
-              {item.label}
+              <span
+                className={cn(
+                  "transition-colors",
+                  isActive ? "text-accent-tempo" : "text-text-muted"
+                )}
+              >
+                {item.icon}
+              </span>
+              <span className="truncate">{item.label}</span>
             </Link>
           );
         })}

@@ -1,6 +1,10 @@
 "use client";
 
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  QueryClient,
+  QueryClientProvider,
+  keepPreviousData,
+} from "@tanstack/react-query";
 import { useState } from "react";
 
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -9,9 +13,17 @@ export function Providers({ children }: { children: React.ReactNode }) {
       new QueryClient({
         defaultOptions: {
           queries: {
+            // Auto-refresh: every 90s while the tab is in focus.
+            // Backend in-memory cache (per-endpoint TTL) protects surf credits.
             staleTime: 60_000,
-            refetchOnWindowFocus: false,
+            refetchInterval: 90_000,
+            refetchIntervalInBackground: false,
+            refetchOnWindowFocus: true,
+            refetchOnReconnect: true,
             retry: 1,
+            // Keep the previous data visible while refetching so values don't
+            // animate from 0 on every background refresh.
+            placeholderData: keepPreviousData,
           },
         },
       })

@@ -38,7 +38,7 @@ function costFormat(n: number) {
 export function BenchmarkSection() {
   const range = useRangeStore((s) => s.range);
 
-  const { data, isLoading, isError, refetch } = useQuery({
+  const { data, isPending: isLoading, isError, refetch } = useQuery({
     queryKey: ["benchmark", range],
     queryFn: () =>
       fetcher<Envelope<BenchmarkData>>(`/api/v1/tempo/benchmark?range=${range}`),
@@ -82,7 +82,7 @@ export function BenchmarkSection() {
     <section className="space-y-8">
       <SectionHeader
         id="cost-benchmark"
-        eyebrow="★ Core Value"
+        eyebrow="Core Value"
         title="Cost Benchmark Arena"
         subtitle="Average cost per transaction over the last 7 days, across major EVM chains."
       />
@@ -103,55 +103,97 @@ export function BenchmarkSection() {
         </Card>
       ) : null}
 
-      {/* Highlight stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Highlight stats — Tempo card spans 2 cols */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {isLoading || !tempoRow ? (
           <>
-            <SkeletonCard variant="kpi" height={160} />
-            <SkeletonCard variant="kpi" height={160} />
-            <SkeletonCard variant="kpi" height={160} />
+            <SkeletonCard variant="kpi" height={180} className="md:col-span-2" />
+            <SkeletonCard variant="kpi" height={180} />
+            <SkeletonCard variant="kpi" height={180} />
           </>
         ) : (
           <>
-            <Card glow gradient className="relative overflow-hidden">
-              <div className="text-[11px] font-semibold uppercase tracking-wider text-accent-tempo mb-3">
-                Tempo avg cost per tx
-              </div>
+            <Card
+              glow
+              gradient
+              className="relative overflow-hidden md:col-span-2 md:row-span-1"
+            >
               <div
-                className={cn(
-                  "font-display font-bold text-text-primary num",
-                  "text-[48px] leading-[1.05]"
-                )}
-                style={{ fontFamily: "var(--font-space-grotesk)" }}
-              >
-                {costFormat(tempoRow.avg_cost_usd)}
-              </div>
-              <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-accent-positive/10 px-2 py-0.5 text-[11px] font-medium text-accent-positive">
-                ↓ Lower is better
+                aria-hidden
+                className="pointer-events-none absolute -top-20 -right-20 h-56 w-56 rounded-full bg-accent-tempo/25 blur-3xl"
+              />
+              <div className="relative">
+                <div className="flex items-center gap-2 mb-3">
+                  <span
+                    className="h-2 w-2 rounded-full bg-accent-tempo shadow-[0_0_12px_rgba(108,92,231,0.9)]"
+                    aria-hidden
+                  />
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-accent-tempo">
+                    Tempo · avg cost per tx
+                  </div>
+                </div>
+                <div
+                  className={cn(
+                    "font-display font-bold text-text-primary num tabular-nums",
+                    "text-[64px] leading-[1]"
+                  )}
+                >
+                  {costFormat(tempoRow.avg_cost_usd)}
+                </div>
+                <div className="mt-4 flex items-center gap-2 flex-wrap">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-accent-positive/15 px-2 py-0.5 text-[11px] font-semibold text-accent-positive">
+                    ↓ Lower is better
+                  </span>
+                  <span className="text-xs text-text-muted">
+                    Last 7 days · stablecoin-denominated
+                  </span>
+                </div>
               </div>
             </Card>
 
             <Card className="relative overflow-hidden">
-              <div className="text-[11px] font-semibold uppercase tracking-wider text-text-muted mb-3">
-                Cheaper than Ethereum
+              <div className="flex items-center gap-2 mb-3">
+                <span
+                  className="h-2 w-2 rounded-full bg-chain-ethereum"
+                  aria-hidden
+                />
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+                  vs Ethereum
+                </div>
               </div>
-              <div className="font-display text-[48px] leading-[1.05] font-bold text-text-primary num">
-                {cheaperVsEth > 0 ? `${fmtNum(cheaperVsEth, { decimals: 0 })}×` : "—"}
+              <div className="font-display text-[40px] leading-[1.05] font-bold text-text-primary num tabular-nums">
+                {cheaperVsEth > 0
+                  ? `${fmtNum(cheaperVsEth, { decimals: 0 })}×`
+                  : "—"}
               </div>
-              <div className="mt-2 text-xs text-text-muted">
-                vs {costFormat(ethRow?.avg_cost_usd ?? 0)} per tx on Ethereum
+              <div className="mt-1 text-xs font-medium text-accent-positive">
+                cheaper
+              </div>
+              <div className="mt-3 text-xs text-text-muted num">
+                Eth: {costFormat(ethRow?.avg_cost_usd ?? 0)} / tx
               </div>
             </Card>
 
             <Card className="relative overflow-hidden">
-              <div className="text-[11px] font-semibold uppercase tracking-wider text-text-muted mb-3">
-                Cheaper than Base
+              <div className="flex items-center gap-2 mb-3">
+                <span
+                  className="h-2 w-2 rounded-full bg-chain-base"
+                  aria-hidden
+                />
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+                  vs Base
+                </div>
               </div>
-              <div className="font-display text-[48px] leading-[1.05] font-bold text-text-primary num">
-                {cheaperVsBase > 0 ? `${fmtNum(cheaperVsBase, { decimals: 0 })}×` : "—"}
+              <div className="font-display text-[40px] leading-[1.05] font-bold text-text-primary num tabular-nums">
+                {cheaperVsBase > 0
+                  ? `${fmtNum(cheaperVsBase, { decimals: 0 })}×`
+                  : "—"}
               </div>
-              <div className="mt-2 text-xs text-text-muted">
-                vs {costFormat(baseRow?.avg_cost_usd ?? 0)} per tx on Base
+              <div className="mt-1 text-xs font-medium text-accent-positive">
+                cheaper
+              </div>
+              <div className="mt-3 text-xs text-text-muted num">
+                Base: {costFormat(baseRow?.avg_cost_usd ?? 0)} / tx
               </div>
             </Card>
           </>
@@ -186,16 +228,72 @@ export function BenchmarkSection() {
           )}
 
           {data?.methodology ? (
-            <details className="mt-6 rounded-xl border border-border-subtle bg-bg-card-hover/40 p-4 group">
-              <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-text-secondary hover:text-text-primary transition-colors flex items-center justify-between">
-                Methodology
-                <span className="text-text-muted group-open:rotate-180 transition-transform">
-                  ▾
+            <details className="mt-6 rounded-xl border border-border-subtle bg-bg-card-hover/40 group overflow-hidden">
+              <summary className="cursor-pointer list-none flex items-center justify-between gap-3 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-text-secondary hover:text-text-primary transition-colors">
+                <span className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-accent-tempo" aria-hidden />
+                  Methodology
                 </span>
+                <svg
+                  className="h-3.5 w-3.5 text-text-muted group-open:rotate-180 transition-transform"
+                  viewBox="0 0 12 12"
+                  fill="none"
+                  aria-hidden
+                >
+                  <path
+                    d="M2 4.5L6 8.5L10 4.5"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
               </summary>
-              <p className="mt-3 text-xs leading-relaxed text-text-secondary">
-                {data.methodology}
-              </p>
+              <div className="border-t border-border-subtle px-4 py-4 grid gap-3 md:grid-cols-2 text-[12px] leading-relaxed text-text-secondary">
+                <div>
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-text-muted mb-1">
+                    Data source
+                  </div>
+                  <div>
+                    On-chain aggregates from <span className="text-text-primary">agent.*_chain_daily</span>,
+                    queried via Surf.
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-text-muted mb-1">
+                    Formula
+                  </div>
+                  <div>
+                    <code className="font-mono text-[11px] text-text-primary">
+                      total_fees_usd / tx_count
+                    </code>{" "}
+                    averaged over the last 7 days.
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-text-muted mb-1">
+                    Gas-token assumptions
+                  </div>
+                  <div>
+                    Native gas fees converted to USD at daily close. Tempo fees
+                    are stablecoin-denominated.
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-text-muted mb-1">
+                    Refresh cadence
+                  </div>
+                  <div>
+                    Backend cache 1h · UI refetch every 90s · compare window
+                    7d.
+                  </div>
+                </div>
+                <div className="md:col-span-2 border-t border-border-subtle pt-3">
+                  <p className="text-[12px] leading-relaxed text-text-muted">
+                    {data.methodology}
+                  </p>
+                </div>
+              </div>
             </details>
           ) : null}
         </Card>

@@ -70,7 +70,17 @@ export function LiveFeed<T>({
                     ease: [0.16, 1, 0.3, 1],
                   }}
                   layout
+                  className="relative"
                 >
+                  {i === 0 ? (
+                    <span
+                      aria-hidden
+                      className="pointer-events-none absolute left-0 top-1/2 -translate-y-1/2 -ml-1 flex h-2 w-2"
+                    >
+                      <span className="absolute inset-0 inline-flex h-full w-full animate-ping rounded-full bg-accent-positive opacity-75" />
+                      <span className="relative inline-flex h-2 w-2 rounded-full bg-accent-positive shadow-[0_0_8px_rgba(0,206,201,0.8)]" />
+                    </span>
+                  ) : null}
                   {renderItem(item, i)}
                 </motion.li>
               ))}

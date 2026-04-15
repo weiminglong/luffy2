@@ -48,13 +48,17 @@ export async function GET(req: NextRequest) {
     const dexVolPrior = num(c.dex_vol_prior_7d);
     const dexSwapsPrior = num(c.dex_swaps_prior_7d);
 
-    // Stablecoin supply: cumulative & 30d-prior cumulative
+    // Stablecoin supply: derived from all-time bridge net flows, restricted to
+    // canonical stables. The tempo_stablecoin_supply table is unreliable
+    // (massively under-reports); bridge flows are authoritative for L2
+    // circulating supply.
     const supplySql = `
       SELECT
-        sumIf(net_supply_change_usd, block_date <= today())             AS supply_latest,
-        sumIf(net_supply_change_usd, block_date <= today() - 30)        AS supply_prior_30d
-      FROM agent.tempo_stablecoin_supply
+        sumIf(net_flow_usd, block_date <= today())          AS supply_latest,
+        sumIf(net_flow_usd, block_date <= today() - 30)     AS supply_prior_30d
+      FROM agent.tempo_bridge_flows_daily
       WHERE ${NOT_UNKNOWN}
+        AND token_symbol IN ('USDC.e', 'pathUSD', 'USDS')
     `;
     const supplyRows = await querySurf(supplySql, { ttl: 300 });
     const s = supplyRows[0] ?? {};

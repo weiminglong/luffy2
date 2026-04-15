@@ -1,7 +1,8 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, ReactNode } from "react";
+import { useMemo, useState, ReactNode } from "react";
+import { cn } from "@/lib/utils";
 import { ArrowRight } from "lucide-react";
 import { useRangeStore } from "@/lib/store";
 import { fetcher } from "@/lib/fetcher";
@@ -25,11 +26,18 @@ interface TopToken {
   token_symbol: string;
   tx_count: number;
   volume_usd: number;
+  unique_senders: number;
+  unique_receivers: number;
+  avg_transfer_usd: number;
   [key: string]: unknown;
 }
 interface ActivityData {
   timeseries: TransferTs[];
   top_tokens: TopToken[];
+}
+interface TokensData {
+  tokens: TopToken[];
+  sort: string;
 }
 
 interface RecentTransfer {
@@ -105,12 +113,22 @@ function ChartCard({
 
 export function TransfersSection() {
   const range = useRangeStore((s) => s.range);
+  const [tokenSort, setTokenSort] = useState<"transfers" | "volume">("transfers");
 
   const activityQ = useQuery({
     queryKey: ["transfers-activity", range],
     queryFn: () =>
       fetcher<Envelope<ActivityData>>(
         `/api/v1/tempo/transfers/activity?range=${range}`
+      ),
+    select: (r) => r.data,
+  });
+
+  const tokensQ = useQuery({
+    queryKey: ["tokens-top", range, tokenSort],
+    queryFn: () =>
+      fetcher<Envelope<TokensData>>(
+        `/api/v1/tempo/tokens/top?range=${range}&sort=${tokenSort}`
       ),
     select: (r) => r.data,
   });
@@ -124,11 +142,11 @@ export function TransfersSection() {
   });
 
   const ts = activityQ.data?.timeseries ?? [];
-  const topTokens = activityQ.data?.top_tokens ?? [];
+  const topTokens = tokensQ.data?.tokens ?? [];
   const transfers = feedQ.data?.transfers ?? [];
 
-  const activityLoading = activityQ.isLoading;
-  const feedLoading = feedQ.isLoading;
+  const activityLoading = activityQ.isPending;
+  const feedLoading = feedQ.isPending;
 
   const sizeBuckets = useMemo(() => {
     const buckets = [
@@ -161,14 +179,31 @@ export function TransfersSection() {
       key: "tx_count",
       label: "Transfers",
       align: "right",
-      barKey: "tx_count",
+      barKey: tokenSort === "transfers" ? "tx_count" : undefined,
       format: (v) => fmtNum(Number(v)),
     },
     {
       key: "volume_usd",
       label: "Volume",
       align: "right",
+      barKey: tokenSort === "volume" ? "volume_usd" : undefined,
       format: (v) => fmtUSD(Number(v)),
+    },
+    {
+      key: "unique_senders",
+      label: "Senders",
+      align: "right",
+      format: (v) => (
+        <span className="text-xs text-text-muted tabular-nums">{fmtNum(Number(v))}</span>
+      ),
+    },
+    {
+      key: "avg_transfer_usd",
+      label: "Avg Tx",
+      align: "right",
+      format: (v) => (
+        <span className="text-xs text-text-muted tabular-nums">{fmtUSD(Number(v))}</span>
+      ),
     },
   ];
 
@@ -227,6 +262,8 @@ export function TransfersSection() {
         id="transfers"
         eyebrow="Transfers"
         title="Transfer Explorer"
+        subtitle="Raw on-chain transfer counts, volume, and the live feed of the most recent settlements."
+        accent="tempo"
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -301,12 +338,32 @@ export function TransfersSection() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {activityLoading ? (
+        {tokensQ.isPending ? (
           <SkeletonCard variant="table" />
         ) : (
           <Card>
             <CardHeader>
-              <CardTitle>Top Tokens by Transfer Count</CardTitle>
+              <div className="flex items-center justify-between w-full">
+                <CardTitle>
+                  Top Tokens {tokenSort === "transfers" ? "by Transfer Count" : "by Volume"}
+                </CardTitle>
+                <div className="inline-flex items-center gap-1 rounded-full border border-border-subtle bg-bg-card p-0.5 text-[11px]">
+                  {(["transfers", "volume"] as const).map((opt) => (
+                    <button
+                      key={opt}
+                      onClick={() => setTokenSort(opt)}
+                      className={cn(
+                        "rounded-full px-2.5 py-0.5 transition-colors capitalize",
+                        tokenSort === opt
+                          ? "bg-accent-tempo/20 text-accent-tempo"
+                          : "text-text-muted hover:text-text-primary"
+                      )}
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </CardHeader>
             <RankingTable
               columns={tokenColumns}

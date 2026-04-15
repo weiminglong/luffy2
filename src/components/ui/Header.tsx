@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { TimeRangeSelector } from "./TimeRangeSelector";
+import { LiveIndicator } from "./LiveIndicator";
 import { useRangeStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -51,7 +52,8 @@ export function Header({ className }: HeaderProps) {
           <TimeRangeSelector value={range} onChange={setRange} />
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
+          <LiveIndicator className="hidden sm:inline-flex" />
           <div className="md:hidden">
             <TimeRangeSelector value={range} onChange={setRange} />
           </div>

@@ -9,6 +9,7 @@ import { SectionHeader } from "@/components/ui/SectionHeader";
 import { Card, CardHeader, CardTitle } from "@/components/ui/Card";
 import { TimeseriesChart } from "@/components/charts/TimeseriesChart";
 import { SkeletonCard } from "@/components/ui/SkeletonCard";
+import { Activity, Flame } from "lucide-react";
 
 interface HealthPoint {
   block_date: string;
@@ -34,6 +35,37 @@ interface HealthData {
 interface Envelope<T> {
   data: T;
   meta: { freshness: string };
+}
+
+interface LifetimeData {
+  cumulative_users: number;
+  cumulative_total_txs: number;
+  cumulative_user_txs: number;
+  cumulative_fees_usd: number;
+  cumulative_deployments: number;
+  avg_tps_7d: number;
+  avg_user_tps_7d: number;
+  avg_fees_per_sec_7d: number;
+}
+
+interface QualityPoint {
+  block_date: string;
+  total_transactions: number;
+  user_transactions: number;
+  system_transactions: number;
+  user_tx_pct: number;
+  contract_deployments: number;
+  avg_fee_usd: number;
+  median_fee_usd: number;
+  p95_fee_usd: number;
+  total_fees_usd: number;
+  sponsored_pct: number;
+  unique_fee_payers: number;
+  [key: string]: unknown;
+}
+
+interface QualityData {
+  timeseries: QualityPoint[];
 }
 
 const xFmt = (d: string) => {
@@ -81,12 +113,26 @@ function ChartCard({
 export function ChainHealthSection() {
   const range = useRangeStore((s) => s.range);
 
-  const { data, isLoading, isError, refetch } = useQuery({
+  const { data, isPending: isLoading, isError, refetch } = useQuery({
     queryKey: ["chain-health", range],
     queryFn: () =>
       fetcher<Envelope<HealthData>>(`/api/v1/tempo/chain/health?range=${range}`),
     select: (r) => r.data,
   });
+
+  const lifetimeQ = useQuery({
+    queryKey: ["lifetime"],
+    queryFn: () => fetcher<Envelope<LifetimeData>>(`/api/v1/tempo/lifetime`),
+    select: (r) => r.data,
+  });
+
+  const qualityQ = useQuery({
+    queryKey: ["chain-quality", range],
+    queryFn: () =>
+      fetcher<Envelope<QualityData>>(`/api/v1/tempo/chain/quality?range=${range}`),
+    select: (r) => r.data,
+  });
+  const qts = qualityQ.data?.timeseries ?? [];
 
   const ts = data?.timeseries ?? [];
   const empty = !isLoading && ts.length === 0;
@@ -97,6 +143,34 @@ export function ChainHealthSection() {
         id="chain-health"
         eyebrow="Network"
         title="Chain Health & Growth"
+        subtitle="Active user cohorts, throughput, fee dynamics, and DEX volume over time."
+        accent="positive"
+        action={
+          lifetimeQ.data ? (
+            <div className="flex items-center gap-2">
+              <span
+                className="inline-flex items-center gap-1.5 rounded-full border border-accent-positive/30 bg-accent-positive/10 px-2.5 py-1 text-[11px] font-medium text-accent-positive tabular-nums"
+                title="Average transactions per second over the last 7 days"
+              >
+                <Activity className="h-3 w-3" />
+                <span className="text-text-primary">
+                  {lifetimeQ.data.avg_tps_7d.toFixed(2)}
+                </span>
+                <span className="text-text-muted">TPS</span>
+              </span>
+              <span
+                className="inline-flex items-center gap-1.5 rounded-full border border-border-subtle bg-bg-card px-2.5 py-1 text-[11px] font-medium text-text-secondary tabular-nums"
+                title="Average fees earned per second over the last 7 days"
+              >
+                <Flame className="h-3 w-3" />
+                <span className="text-text-primary">
+                  ${lifetimeQ.data.avg_fees_per_sec_7d.toFixed(3)}
+                </span>
+                <span className="text-text-muted">/s</span>
+              </span>
+            </div>
+          ) : null
+        }
       />
 
       {isError ? (
@@ -118,13 +192,14 @@ export function ChainHealthSection() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <ChartCard
           title="Active Users"
-          subtitle="Daily / weekly / monthly active users"
+          subtitle="DAU / WAU / MAU — WAU and MAU trail DAU during early launch"
           loading={isLoading}
           empty={empty}
         >
           <TimeseriesChart
             data={ts}
             xKey="block_date"
+            height={300}
             series={[
               { key: "dau", label: "DAU", color: "#6C5CE7" },
               { key: "wau", label: "WAU", color: "#00CEC9" },
@@ -163,31 +238,44 @@ export function ChainHealthSection() {
 
         <ChartCard
           title="Daily Transactions"
-          subtitle="Total transactions per day"
-          loading={isLoading}
-          empty={empty}
+          subtitle="User vs. system transactions per day"
+          loading={isLoading || qualityQ.isPending}
+          empty={empty && qts.length === 0}
         >
           <TimeseriesChart
-            data={ts}
+            data={qts}
             xKey="block_date"
+            stackId="txs"
             series={[
-              { key: "total_txs", label: "Transactions", color: "#6C5CE7", type: "bar" },
+              {
+                key: "user_transactions",
+                label: "User",
+                color: "#6C5CE7",
+                type: "bar",
+              },
+              {
+                key: "system_transactions",
+                label: "System",
+                color: "#3F4158",
+                type: "bar",
+              },
             ]}
             yFormatter={(n) => fmtNum(n)}
             xFormatter={xFmt}
+            showLegend
           />
         </ChartCard>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <ChartCard
-          title="Total Fees & Sponsored %"
-          subtitle="Daily fee revenue and share of sponsored transactions"
-          loading={isLoading}
-          empty={empty}
+          title="Fee Dynamics"
+          subtitle="Daily revenue vs. user experience — median & p95 per-tx fees"
+          loading={isLoading || qualityQ.isPending}
+          empty={empty && qts.length === 0}
         >
           <TimeseriesChart
-            data={ts}
+            data={qts}
             xKey="block_date"
             series={[
               {
@@ -197,12 +285,17 @@ export function ChainHealthSection() {
                 type: "bar",
               },
               {
-                key: "sponsored_fee_pct",
-                label: "Sponsored %",
+                key: "median_fee_usd",
+                label: "Median Fee",
                 color: "#00CEC9",
               },
+              {
+                key: "p95_fee_usd",
+                label: "p95 Fee",
+                color: "#FD7272",
+              },
             ]}
-            yFormatter={(n) => (n >= 1 ? fmtUSD(n) : `${n.toFixed(1)}%`)}
+            yFormatter={(n) => (n >= 1 ? fmtUSD(n) : `$${n.toFixed(4)}`)}
             xFormatter={xFmt}
             showLegend
           />
@@ -226,6 +319,28 @@ export function ChainHealthSection() {
               },
             ]}
             yFormatter={(n) => fmtUSD(n)}
+            xFormatter={xFmt}
+          />
+        </ChartCard>
+
+        <ChartCard
+          title="Contract Deployments"
+          subtitle="New smart contracts deployed per day (trace-derived)"
+          loading={isLoading}
+          empty={empty}
+        >
+          <TimeseriesChart
+            data={ts}
+            xKey="block_date"
+            series={[
+              {
+                key: "contract_deployments_from_traces",
+                label: "Deployments",
+                color: "#2ED573",
+                type: "bar",
+              },
+            ]}
+            yFormatter={(n) => fmtNum(n)}
             xFormatter={xFmt}
           />
         </ChartCard>
