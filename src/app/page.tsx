@@ -6,10 +6,10 @@ import { HeroSection } from "@/components/sections/HeroSection";
 import { BenchmarkSection } from "@/components/sections/BenchmarkSection";
 import { ChainHealthSection } from "@/components/sections/ChainHealthSection";
 import { EcosystemActivitySection } from "@/components/sections/EcosystemActivitySection";
-import { RetentionSection } from "@/components/sections/RetentionSection";
 import { StablecoinSection } from "@/components/sections/StablecoinSection";
 import { DexSection } from "@/components/sections/DexSection";
 import { MppSection } from "@/components/sections/MppSection";
+import { TokenSection } from "@/components/sections/TokenSection";
 import { TransfersSection } from "@/components/sections/TransfersSection";
 import { Footer } from "@/components/sections/Footer";
 
@@ -24,9 +24,9 @@ export default function Page() {
           <BenchmarkSection />
           <ChainHealthSection />
           <EcosystemActivitySection />
-          <RetentionSection />
           <StablecoinSection />
           <DexSection />
+          <TokenSection />
           <MppSection />
           <TransfersSection />
         </main>

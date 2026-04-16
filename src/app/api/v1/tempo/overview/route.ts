@@ -22,15 +22,11 @@ export async function GET(req: NextRequest) {
         argMax(dau, block_date) AS dau_latest,
         argMax(total_txs, block_date) AS txs_latest,
         argMax(total_fees_usd, block_date) AS fees_latest,
-        argMax(dex_volume_usd, block_date) AS dex_vol_latest,
-        argMax(dex_trade_count, block_date) AS dex_swaps_latest,
         max(block_date) AS latest_date,
         anyIf(dau, block_date = today() - 31) AS dau_prior_30d,
         anyIf(dau, block_date = today() - 8)  AS dau_prior_7d,
         anyIf(total_txs, block_date = today() - 8) AS txs_prior_7d,
-        anyIf(total_fees_usd, block_date = today() - 8) AS fees_prior_7d,
-        anyIf(dex_volume_usd, block_date = today() - 8) AS dex_vol_prior_7d,
-        anyIf(dex_trade_count, block_date = today() - 8) AS dex_swaps_prior_7d
+        anyIf(total_fees_usd, block_date = today() - 8) AS fees_prior_7d
       FROM agent.tempo_chain_daily
       WHERE block_date >= today() - ${days}
         AND block_date <= today() - 1
@@ -41,14 +37,10 @@ export async function GET(req: NextRequest) {
     const dauLatest = num(c.dau_latest);
     const txsLatest = num(c.txs_latest);
     const feesLatest = num(c.fees_latest);
-    const dexVolLatest = num(c.dex_vol_latest);
-    const dexSwapsLatest = num(c.dex_swaps_latest);
 
     const dauPrior = num(c.dau_prior_30d);
     const txsPrior = num(c.txs_prior_7d);
     const feesPrior = num(c.fees_prior_7d);
-    const dexVolPrior = num(c.dex_vol_prior_7d);
-    const dexSwapsPrior = num(c.dex_swaps_prior_7d);
 
     // Stablecoin supply: authoritative source is stablecoin_metrics_daily
     // (its cumulative_supply_usd reconciles with bridge_flows and captures all
@@ -79,6 +71,7 @@ export async function GET(req: NextRequest) {
       querySurf(supplySql, { ttl: 300 }),
       querySurf(supplyPriorSql, { ttl: 300 }),
     ]);
+
     const supplyLatest = num(latestRows[0]?.supply_latest);
     const supplyPrior = num(priorRows[0]?.supply_prior);
 
@@ -92,8 +85,6 @@ export async function GET(req: NextRequest) {
       dau: kpi(dauLatest, dauPrior),
       txs: kpi(txsLatest, txsPrior),
       fees: kpi(feesLatest, feesPrior),
-      dex_volume: kpi(dexVolLatest, dexVolPrior),
-      dex_swaps: kpi(dexSwapsLatest, dexSwapsPrior),
       stablecoin_supply: kpi(supplyLatest, supplyPrior),
       latest_date: epochToDate(c.latest_date as number | string | null),
     };

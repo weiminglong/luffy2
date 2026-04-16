@@ -8,7 +8,6 @@ import {
   Repeat,
   Users,
   Layers,
-  DollarSign,
   Droplet,
 } from "lucide-react";
 import { useRangeStore } from "@/lib/store";
@@ -201,10 +200,6 @@ export function DexSection() {
     return [...ts].reverse().find((r) => r.block_date < todayStr) ?? ts[ts.length - 1];
   }, [ts]);
   const activePairsCount = pairs.length;
-  const totalVolume = useMemo(
-    () => ts.reduce((s, r) => s + r.volume, 0),
-    [ts]
-  );
 
   // Size buckets from recent swaps
   const sizeBuckets = useMemo(() => {
@@ -303,9 +298,9 @@ export function DexSection() {
       />
 
       {/* KPI strip */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {activityLoading ? (
-          Array.from({ length: 5 }).map((_, i) => (
+          Array.from({ length: 4 }).map((_, i) => (
             <SkeletonCard key={i} variant="kpi" height={80} />
           ))
         ) : (
@@ -336,19 +331,11 @@ export function DexSection() {
             />
             <KPICard
               variant="compact"
-              label="DEX TVL"
+              label="DEX TVL (Tracked)"
               value={tvlQ.data?.current_total_usd ?? 0}
               format={(n) => fmtUSD(n)}
               accent="stablecoin"
               icon={<Droplet className="h-4 w-4" />}
-            />
-            <KPICard
-              variant="compact"
-              label="Total Volume"
-              value={totalVolume}
-              format={(n) => fmtUSD(n)}
-              accent="tempo"
-              icon={<DollarSign className="h-4 w-4" />}
             />
           </>
         )}
@@ -420,7 +407,7 @@ export function DexSection() {
               <div>
                 <CardTitle>Top Pools by TVL</CardTitle>
                 <p className="text-xs text-text-muted mt-1">
-                  Liquidity depth across Uniswap V2 pairs on Tempo
+                  Liquidity depth across tracked Uniswap V2 pools on Tempo
                 </p>
               </div>
             </CardHeader>

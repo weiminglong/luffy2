@@ -7,9 +7,9 @@ import {
   Gauge,
   Activity,
   Boxes,
-  UsersRound,
   Coins,
   ArrowLeftRight,
+  CircleDollarSign,
   Store,
   Send,
 } from "lucide-react";
@@ -28,9 +28,9 @@ const DEFAULT_ITEMS: SidebarItem[] = [
   { id: "cost-benchmark", label: "Benchmark", icon: <Gauge className={ICON_CLASS} /> },
   { id: "chain-health", label: "Chain Health", icon: <Activity className={ICON_CLASS} /> },
   { id: "ecosystem-activity", label: "Ecosystem", icon: <Boxes className={ICON_CLASS} /> },
-  { id: "retention", label: "Retention", icon: <UsersRound className={ICON_CLASS} /> },
   { id: "stablecoins", label: "Stablecoins", icon: <Coins className={ICON_CLASS} /> },
   { id: "dex", label: "DEX", icon: <ArrowLeftRight className={ICON_CLASS} /> },
+  { id: "tokens", label: "Tokens", icon: <CircleDollarSign className={ICON_CLASS} /> },
   { id: "merchants", label: "Payments", icon: <Store className={ICON_CLASS} /> },
   { id: "transfers", label: "Transfers", icon: <Send className={ICON_CLASS} /> },
 ];
