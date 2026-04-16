@@ -13,9 +13,10 @@ function formatTimestamp(d: Date): string {
 }
 
 const LEFT_LINKS: Array<{ label: string; href: string; external?: boolean }> = [
-  { label: "Docs", href: "https://usesurf.ai", external: true },
-  { label: "API", href: "https://usesurf.ai", external: true },
-  { label: "GitHub", href: "https://github.com", external: true },
+  { label: "Surf", href: "https://asksurf.ai", external: true },
+  { label: "Tempo", href: "https://tempo.network", external: true },
+  { label: "Surf GitHub", href: "https://github.com/asksurf-ai", external: true },
+  { label: "Source", href: "https://github.com/cyberconnecthq/luffy2", external: true },
   { label: "Methodology", href: "#cost-benchmark" },
 ];
 
@@ -57,7 +58,7 @@ export function Footer() {
               </p>
             </div>
             <Link
-              href="https://usesurf.ai"
+              href="https://asksurf.ai"
               target="_blank"
               rel="noopener noreferrer"
               className="group relative inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-sm font-semibold text-white transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-tempo focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary"
@@ -116,7 +117,7 @@ export function Footer() {
             <div className="text-xs text-text-muted">
               Built with Tempo data via{" "}
               <Link
-                href="https://usesurf.ai"
+                href="https://asksurf.ai"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-text-secondary hover:text-text-primary transition-colors"

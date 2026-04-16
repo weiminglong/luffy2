@@ -20,6 +20,7 @@ interface KPICardProps {
   icon?: ReactNode;
   accent?: Accent;
   format?: (n: number) => string;
+  animate?: boolean;
   className?: string;
 }
 
@@ -68,14 +69,25 @@ export function KPICard({
   icon,
   accent = "tempo",
   format,
+  animate: shouldAnimate = true,
   className,
 }: KPICardProps) {
   const isNumeric = typeof value === "number" && Number.isFinite(value);
   const formatter = format ?? ((n: number) => n.toLocaleString());
+  const renderValue = () =>
+    isNumeric ? (
+      shouldAnimate ? (
+        <AnimatedNumber value={value as number} format={formatter} />
+      ) : (
+        formatter(value as number)
+      )
+    ) : (
+      value
+    );
   const color = ACCENT_COLOR[accent];
 
   const valueSizes: Record<Variant, string> = {
-    hero: "text-[64px] leading-[1.05]",
+    hero: "text-[44px] xl:text-[52px] leading-[1.05]",
     section: "text-[36px] leading-[1.1]",
     compact: "text-[24px] leading-[1.15]",
   };
@@ -116,11 +128,7 @@ export function KPICard({
                 "text-[22px] leading-[1.15]"
               )}
             >
-              {isNumeric ? (
-                <AnimatedNumber value={value as number} format={formatter} />
-              ) : (
-                value
-              )}
+              {renderValue()}
             </div>
           </div>
         </div>
@@ -173,11 +181,7 @@ export function KPICard({
               valueSizes[variant]
             )}
           >
-            {isNumeric ? (
-              <AnimatedNumber value={value as number} format={formatter} />
-            ) : (
-              value
-            )}
+            {renderValue()}
           </div>
 
           {(delta !== undefined || deltaLabel) && (

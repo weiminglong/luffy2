@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { querySurf, epochToDate, NOT_UNKNOWN, rangeToDays } from "@/lib/surf";
+import { querySurf, epochToDate, rangeToDays } from "@/lib/surf";
 import { jsonOK, jsonErr, num, pctChange } from "@/lib/api";
 
 export const runtime = "nodejs";
@@ -15,7 +15,8 @@ export async function GET(req: NextRequest) {
   const days = rangeToDays(range);
 
   try {
-    // Chain-level: get latest + 7d-prior + 30d-prior in one shot via conditional aggregation.
+    // Chain-level: use the most recent complete day (exclude today, which is
+    // usually partial). Previous period = 7 days before that.
     const chainSql = `
       SELECT
         argMax(dau, block_date) AS dau_latest,
@@ -24,14 +25,15 @@ export async function GET(req: NextRequest) {
         argMax(dex_volume_usd, block_date) AS dex_vol_latest,
         argMax(dex_trade_count, block_date) AS dex_swaps_latest,
         max(block_date) AS latest_date,
-        anyIf(dau, block_date = today() - 30) AS dau_prior_30d,
-        anyIf(dau, block_date = today() - 7)  AS dau_prior_7d,
-        anyIf(total_txs, block_date = today() - 7) AS txs_prior_7d,
-        anyIf(total_fees_usd, block_date = today() - 7) AS fees_prior_7d,
-        anyIf(dex_volume_usd, block_date = today() - 7) AS dex_vol_prior_7d,
-        anyIf(dex_trade_count, block_date = today() - 7) AS dex_swaps_prior_7d
+        anyIf(dau, block_date = today() - 31) AS dau_prior_30d,
+        anyIf(dau, block_date = today() - 8)  AS dau_prior_7d,
+        anyIf(total_txs, block_date = today() - 8) AS txs_prior_7d,
+        anyIf(total_fees_usd, block_date = today() - 8) AS fees_prior_7d,
+        anyIf(dex_volume_usd, block_date = today() - 8) AS dex_vol_prior_7d,
+        anyIf(dex_trade_count, block_date = today() - 8) AS dex_swaps_prior_7d
       FROM agent.tempo_chain_daily
       WHERE block_date >= today() - ${days}
+        AND block_date <= today() - 1
     `;
     const chainRows = await querySurf(chainSql, { ttl: 300 });
     const c = chainRows[0] ?? {};
@@ -48,22 +50,37 @@ export async function GET(req: NextRequest) {
     const dexVolPrior = num(c.dex_vol_prior_7d);
     const dexSwapsPrior = num(c.dex_swaps_prior_7d);
 
-    // Stablecoin supply: derived from all-time bridge net flows, restricted to
-    // canonical stables. The tempo_stablecoin_supply table is unreliable
-    // (massively under-reports); bridge flows are authoritative for L2
-    // circulating supply.
+    // Stablecoin supply: authoritative source is stablecoin_metrics_daily
+    // (its cumulative_supply_usd reconciles with bridge_flows and captures all
+    // canonical stables). The older stablecoin_supply table under-reports.
     const supplySql = `
       SELECT
-        sumIf(net_flow_usd, block_date <= today())          AS supply_latest,
-        sumIf(net_flow_usd, block_date <= today() - 30)     AS supply_prior_30d
-      FROM agent.tempo_bridge_flows_daily
-      WHERE ${NOT_UNKNOWN}
-        AND token_symbol IN ('USDC.e', 'pathUSD', 'USDS')
+        sum(cumulative_supply_usd) AS supply_latest
+      FROM (
+        SELECT token_symbol, argMax(cumulative_supply_usd, block_date) AS cumulative_supply_usd
+        FROM agent.tempo_stablecoin_metrics_daily
+        WHERE block_date >= today() - 30
+          AND token_symbol IN ('USDC.e', 'pathUSD', 'USDS', 'USDT0')
+        GROUP BY token_symbol
+      )
     `;
-    const supplyRows = await querySurf(supplySql, { ttl: 300 });
-    const s = supplyRows[0] ?? {};
-    const supplyLatest = num(s.supply_latest);
-    const supplyPrior = num(s.supply_prior_30d);
+    const supplyPriorSql = `
+      SELECT
+        sum(cumulative_supply_usd) AS supply_prior
+      FROM (
+        SELECT token_symbol, argMax(cumulative_supply_usd, block_date) AS cumulative_supply_usd
+        FROM agent.tempo_stablecoin_metrics_daily
+        WHERE block_date >= today() - 14 AND block_date <= today() - 7
+          AND token_symbol IN ('USDC.e', 'pathUSD', 'USDS', 'USDT0')
+        GROUP BY token_symbol
+      )
+    `;
+    const [latestRows, priorRows] = await Promise.all([
+      querySurf(supplySql, { ttl: 300 }),
+      querySurf(supplyPriorSql, { ttl: 300 }),
+    ]);
+    const supplyLatest = num(latestRows[0]?.supply_latest);
+    const supplyPrior = num(priorRows[0]?.supply_prior);
 
     const kpi = (v: number, p: number): KPI => ({
       value: v,

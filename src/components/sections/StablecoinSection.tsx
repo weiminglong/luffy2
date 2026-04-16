@@ -81,6 +81,27 @@ interface BridgeData {
   total_current_supply_usd: number;
 }
 
+interface StablecoinMetricPoint {
+  block_date: string;
+  token_symbol: string;
+  txn_count: number;
+  transfer_volume_usd: number;
+  dau: number;
+  cumulative_supply_usd: number;
+  [key: string]: unknown;
+}
+interface StablecoinMetricsData {
+  timeseries: StablecoinMetricPoint[];
+  by_token: Array<{
+    token_symbol: string;
+    cumulative_supply_usd: number;
+    dau: number;
+    txn_count: number;
+    transfer_volume_usd: number;
+  }>;
+  current_total_supply_usd: number;
+}
+
 interface Envelope<T> {
   data: T;
   meta: { freshness: string };
@@ -165,49 +186,99 @@ export function StablecoinSection() {
     select: (r) => r.data,
   });
 
+  const metricsQ = useQuery({
+    queryKey: ["stablecoin-metrics", range],
+    queryFn: () =>
+      fetcher<Envelope<StablecoinMetricsData>>(
+        `/api/v1/tempo/stablecoins/metrics?range=${range}`
+      ),
+    select: (r) => r.data,
+  });
+
   const supplyLoading = supplyQ.isPending;
   const transfersLoading = transfersQ.isPending;
   const bridgeLoading = bridgeQ.isPending;
 
-  // KPI strip values. Total supply is derived from all-time bridge net flows
-  // (authoritative) rather than the stablecoin_supply table which
-  // under-reports.
-  const totalSupply = bridgeQ.data?.total_current_supply_usd ?? 0;
+  // KPI strip values. Authoritative source is stablecoin_metrics_daily (its
+  // cumulative_supply_usd column reconciles with bridge flows).
+  const totalSupply = metricsQ.data?.current_total_supply_usd ?? 0;
   const netBridge = bridgeQ.data?.net_flow_usd ?? 0;
 
-  const latestTransfer = transfersQ.data?.timeseries?.slice(-1)[0];
+  // Skip today's partial data — show yesterday's complete snapshot.
+  const latestTransfer = useMemo(() => {
+    const ts = transfersQ.data?.timeseries ?? [];
+    const todayStr = new Date().toISOString().slice(0, 10);
+    return [...ts].reverse().find((r) => r.block_date < todayStr) ?? ts[ts.length - 1];
+  }, [transfersQ.data]);
   const latestTransferTxs = latestTransfer?.tx_count ?? 0;
   const latestUniqueSenders = latestTransfer?.unique_senders ?? 0;
 
-  // Donut: supply by token from bridge-derived current balances.
+  // Donut: per-token current supply from metrics table.
   const donutData = useMemo(
     () =>
-      (bridgeQ.data?.current_supply_by_token ?? []).map((t) => ({
+      (metricsQ.data?.by_token ?? []).map((t) => ({
         name: t.token_symbol,
-        value: Math.max(0, t.current_supply_usd),
+        value: Math.max(0, t.cumulative_supply_usd),
         color: colorForToken(t.token_symbol),
       })),
-    [bridgeQ.data]
+    [metricsQ.data]
   );
 
-  // Cumulative supply over time, derived from bridge daily net flows
-  // (authoritative). Pivot by token and compute a running sum, clamped at 0
-  // so a short-term negative blip cannot flip the stack.
-  const cumulativeData = useMemo(() => {
-    const ts = bridgeQ.data?.timeseries ?? [];
+  // Per-stablecoin DAU timeseries pivoted by token.
+  const dauByToken = useMemo(() => {
+    const ts = metricsQ.data?.timeseries ?? [];
     if (ts.length === 0) return { rows: [], tokens: [] as string[] };
     const dates = Array.from(new Set(ts.map((r) => r.block_date))).sort();
     const tokens = Array.from(new Set(ts.map((r) => r.token_symbol)));
-    const running: Record<string, number> = Object.fromEntries(
-      tokens.map((t) => [t, 0])
-    );
     const byDateByToken: Record<string, Record<string, number>> = {};
     for (const r of ts) {
       byDateByToken[r.block_date] ??= {};
       byDateByToken[r.block_date][r.token_symbol] =
-        (byDateByToken[r.block_date][r.token_symbol] ?? 0) + r.net_flow_usd;
+        (byDateByToken[r.block_date][r.token_symbol] ?? 0) + r.dau;
     }
     const rows = dates.map((d) => {
+      const row: Record<string, string | number> = { block_date: d };
+      for (const t of tokens) row[t] = byDateByToken[d]?.[t] ?? 0;
+      return row;
+    });
+    return { rows, tokens };
+  }, [metricsQ.data]);
+
+  // Cumulative supply over time. Prefer bridge net flows; fall back to
+  // supply table net changes when bridge data is unavailable.
+  const cumulativeData = useMemo(() => {
+    const CANONICAL = new Set(["USDC.e", "pathUSD", "USDS"]);
+    const bridgeTs = bridgeQ.data?.timeseries ?? [];
+    const hasBridge = bridgeTs.length > 0;
+
+    type Row = { block_date: string; token_symbol: string; delta: number };
+    const rows: Row[] = hasBridge
+      ? bridgeTs.map((r) => ({
+          block_date: r.block_date,
+          token_symbol: r.token_symbol,
+          delta: r.net_flow_usd,
+        }))
+      : (supplyQ.data?.timeseries ?? [])
+          .filter((r) => CANONICAL.has(r.token_symbol))
+          .map((r) => ({
+            block_date: r.block_date,
+            token_symbol: r.token_symbol,
+            delta: r.net_supply_change_usd,
+          }));
+
+    if (rows.length === 0) return { rows: [] as Array<Record<string, string | number>>, tokens: [] as string[] };
+    const dates = Array.from(new Set(rows.map((r) => r.block_date))).sort();
+    const tokens = Array.from(new Set(rows.map((r) => r.token_symbol)));
+    const running: Record<string, number> = Object.fromEntries(
+      tokens.map((t) => [t, 0])
+    );
+    const byDateByToken: Record<string, Record<string, number>> = {};
+    for (const r of rows) {
+      byDateByToken[r.block_date] ??= {};
+      byDateByToken[r.block_date][r.token_symbol] =
+        (byDateByToken[r.block_date][r.token_symbol] ?? 0) + r.delta;
+    }
+    const outRows = dates.map((d) => {
       const row: Record<string, string | number> = { block_date: d };
       for (const t of tokens) {
         running[t] += byDateByToken[d]?.[t] ?? 0;
@@ -215,8 +286,8 @@ export function StablecoinSection() {
       }
       return row;
     });
-    return { rows, tokens };
-  }, [bridgeQ.data]);
+    return { rows: outRows, tokens };
+  }, [bridgeQ.data, supplyQ.data]);
 
   // Transfers timeseries
   const transfersTs = transfersQ.data?.timeseries ?? [];
@@ -377,6 +448,30 @@ export function StablecoinSection() {
             ]}
             yFormatter={(n) => fmtNum(n)}
             xFormatter={xFmt}
+          />
+        </ChartCard>
+      </div>
+
+      {/* Per-stablecoin DAU */}
+      <div className="grid grid-cols-1 gap-6">
+        <ChartCard
+          title="Daily Active Users per Stablecoin"
+          subtitle="Unique senders by token — who's actually using each stable"
+          loading={metricsQ.isPending}
+          empty={!metricsQ.isPending && dauByToken.rows.length === 0}
+        >
+          <TimeseriesChart
+            data={dauByToken.rows}
+            xKey="block_date"
+            series={dauByToken.tokens.map((t) => ({
+              key: t,
+              label: t,
+              color: colorForToken(t),
+            }))}
+            yFormatter={(n) => fmtNum(n)}
+            xFormatter={xFmt}
+            showLegend
+            height={260}
           />
         </ChartCard>
       </div>

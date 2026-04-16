@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { TimeRangeSelector } from "./TimeRangeSelector";
 import { LiveIndicator } from "./LiveIndicator";
+import { SurfLogo } from "./MadeBySurfBadge";
 import { useRangeStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -58,15 +59,17 @@ export function Header({ className }: HeaderProps) {
             <TimeRangeSelector value={range} onChange={setRange} />
           </div>
           <Link
-            href="https://usesurf.ai"
+            href="https://asksurf.ai"
             target="_blank"
             rel="noopener noreferrer"
-            className="hidden sm:inline-flex items-center text-xs font-medium text-text-secondary hover:text-text-primary transition-colors"
+            aria-label="Powered by Surf"
+            className="hidden sm:inline-flex items-center gap-1.5 text-[11px] font-medium text-text-secondary hover:text-text-primary transition-colors"
           >
-            Powered by Surf
+            <span>Powered by</span>
+            <SurfLogo size={14} />
           </Link>
           <Link
-            href="https://github.com"
+            href="https://github.com/cyberconnecthq/luffy2"
             target="_blank"
             rel="noopener noreferrer"
             aria-label="GitHub"

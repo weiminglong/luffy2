@@ -118,8 +118,8 @@ export function SectionHeader({
         {showRange ? (
           <span className="inline-flex items-center gap-1.5 rounded-full border border-border-subtle bg-bg-card px-2.5 py-1 text-[11px] font-medium text-text-secondary tabular-nums">
             <span className="text-text-muted">Range</span>
-            <span className="text-text-primary uppercase tracking-wider">
-              {range}
+            <span className="text-text-primary tracking-wider">
+              {range === "7d" ? "Weekly" : range === "all" ? "Since Launch" : range.toUpperCase()}
             </span>
           </span>
         ) : null}

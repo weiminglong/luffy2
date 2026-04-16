@@ -9,6 +9,7 @@ import {
   Users,
   Layers,
   DollarSign,
+  Droplet,
 } from "lucide-react";
 import { useRangeStore } from "@/lib/store";
 import { fetcher } from "@/lib/fetcher";
@@ -51,6 +52,28 @@ interface Swap {
 }
 interface SwapsData {
   swaps: Swap[];
+}
+
+interface PoolRow {
+  pair_address: string;
+  token0_symbol: string;
+  token1_symbol: string;
+  token0_balance: number;
+  token1_balance: number;
+  token0_usd: number;
+  token1_usd: number;
+  tvl_usd: number;
+  project: string;
+  [key: string]: unknown;
+}
+interface PoolsData {
+  pools: PoolRow[];
+}
+
+interface TvlData {
+  current_total_usd: number;
+  prior_7d_total_usd: number;
+  by_project: Array<{ project: string; tvl_usd: number; pools: number }>;
 }
 
 interface Envelope<T> {
@@ -131,6 +154,18 @@ export function DexSection() {
     refetchInterval: 30_000,
   });
 
+  const poolsQ = useQuery({
+    queryKey: ["dex-pools"],
+    queryFn: () => fetcher<Envelope<PoolsData>>(`/api/v1/tempo/dex/pools`),
+    select: (r) => r.data,
+  });
+
+  const tvlQ = useQuery({
+    queryKey: ["tvl", range],
+    queryFn: () => fetcher<Envelope<TvlData>>(`/api/v1/tempo/tvl?range=${range}`),
+    select: (r) => r.data,
+  });
+
   const ts = activityQ.data?.timeseries ?? [];
   // Defensive client-side filter: drop any pair containing empty, UNKNOWN or
   // malformed token symbols so the leaderboard stays clean.
@@ -160,8 +195,11 @@ export function DexSection() {
   const activityLoading = activityQ.isPending;
   const swapsLoading = swapsQ.isPending;
 
-  // KPIs
-  const latest = ts[ts.length - 1];
+  // KPIs — skip today's partial day for accurate 24h metrics.
+  const latest = useMemo(() => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    return [...ts].reverse().find((r) => r.block_date < todayStr) ?? ts[ts.length - 1];
+  }, [ts]);
   const activePairsCount = pairs.length;
   const totalVolume = useMemo(
     () => ts.reduce((s, r) => s + r.volume, 0),
@@ -205,6 +243,55 @@ export function DexSection() {
     },
   ];
 
+  const pools = useMemo(
+    () =>
+      (poolsQ.data?.pools ?? []).filter(
+        (p) => p.token0_symbol && p.token1_symbol && p.tvl_usd > 0
+      ),
+    [poolsQ.data]
+  );
+
+  const poolColumns: RankingColumn<PoolRow>[] = [
+    {
+      key: "pair_address",
+      label: "Pool",
+      format: (_v, r) => (
+        <span className="font-medium text-text-primary">
+          {r.token0_symbol === "UNKNOWN" ? "?" : r.token0_symbol}
+          <span className="text-text-muted mx-1">/</span>
+          {r.token1_symbol === "UNKNOWN" ? "?" : r.token1_symbol}
+        </span>
+      ),
+    },
+    {
+      key: "tvl_usd",
+      label: "TVL",
+      align: "right",
+      barKey: "tvl_usd",
+      format: (v) => fmtUSD(Number(v)),
+    },
+    {
+      key: "token0_usd",
+      label: "Token0 $",
+      align: "right",
+      format: (v) => (
+        <span className="text-xs text-text-muted tabular-nums">
+          {fmtUSD(Number(v))}
+        </span>
+      ),
+    },
+    {
+      key: "token1_usd",
+      label: "Token1 $",
+      align: "right",
+      format: (v) => (
+        <span className="text-xs text-text-muted tabular-nums">
+          {fmtUSD(Number(v))}
+        </span>
+      ),
+    },
+  ];
+
   return (
     <section className="space-y-8">
       <SectionHeader
@@ -216,9 +303,9 @@ export function DexSection() {
       />
 
       {/* KPI strip */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
         {activityLoading ? (
-          Array.from({ length: 4 }).map((_, i) => (
+          Array.from({ length: 5 }).map((_, i) => (
             <SkeletonCard key={i} variant="kpi" height={80} />
           ))
         ) : (
@@ -246,6 +333,14 @@ export function DexSection() {
               format={(n) => fmtNum(n)}
               accent="stablecoin"
               icon={<Layers className="h-4 w-4" />}
+            />
+            <KPICard
+              variant="compact"
+              label="DEX TVL"
+              value={tvlQ.data?.current_total_usd ?? 0}
+              format={(n) => fmtUSD(n)}
+              accent="stablecoin"
+              icon={<Droplet className="h-4 w-4" />}
             />
             <KPICard
               variant="compact"
@@ -299,7 +394,7 @@ export function DexSection() {
         </ChartCard>
       </div>
 
-      {/* Row 2: top pairs + size histogram */}
+      {/* Row 2: top pairs + top pools */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {activityLoading ? (
           <SkeletonCard variant="table" />
@@ -317,10 +412,40 @@ export function DexSection() {
           </Card>
         )}
 
+        {poolsQ.isPending ? (
+          <SkeletonCard variant="table" />
+        ) : (
+          <Card>
+            <CardHeader>
+              <div>
+                <CardTitle>Top Pools by TVL</CardTitle>
+                <p className="text-xs text-text-muted mt-1">
+                  Liquidity depth across Uniswap V2 pairs on Tempo
+                </p>
+              </div>
+            </CardHeader>
+            {pools.length === 0 ? (
+              <div className="py-10 text-center text-sm text-text-muted">
+                No pool data available.
+              </div>
+            ) : (
+              <RankingTable
+                columns={poolColumns}
+                data={pools}
+                rowKey={(r) => r.pair_address}
+                showRank
+              />
+            )}
+          </Card>
+        )}
+      </div>
+
+      {/* Row 3: size histogram */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {swapsLoading ? (
           <SkeletonCard variant="chart" height={320} />
         ) : (
-          <Card>
+          <Card className="lg:col-span-1">
             <CardHeader>
               <div>
                 <CardTitle>Swap Size Distribution</CardTitle>

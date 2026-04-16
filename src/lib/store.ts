@@ -6,6 +6,6 @@ interface RangeState {
 }
 
 export const useRangeStore = create<RangeState>((set) => ({
-  range: "30d",
+  range: "all",
   setRange: (r: string) => set({ range: r }),
 }));

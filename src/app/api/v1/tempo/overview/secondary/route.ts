@@ -18,13 +18,15 @@ export async function GET(req: NextRequest) {
         max(block_date) AS latest_date
       FROM agent.tempo_chain_daily
       WHERE block_date >= today() - ${days}
+        AND block_date <= today() - 1
     `;
 
     const mppVolSql = `
       SELECT SUM(volume_usd) AS mpp_volume_24h, max(block_date) AS d
       FROM agent.tempo_mpp_metrics_daily
       WHERE block_date = (
-        SELECT max(block_date) FROM agent.tempo_mpp_metrics_daily WHERE ${NOT_UNKNOWN}
+        SELECT max(block_date) FROM agent.tempo_mpp_metrics_daily
+        WHERE block_date <= today() - 1 AND ${NOT_UNKNOWN}
       )
       AND ${NOT_UNKNOWN}
     `;
@@ -33,7 +35,8 @@ export async function GET(req: NextRequest) {
       SELECT COUNT(DISTINCT transfer_to) AS active_merchants, max(block_date) AS d
       FROM agent.tempo_mpp_payees_daily
       WHERE block_date = (
-        SELECT max(block_date) FROM agent.tempo_mpp_payees_daily WHERE ${NOT_UNKNOWN}
+        SELECT max(block_date) FROM agent.tempo_mpp_payees_daily
+        WHERE block_date <= today() - 1 AND ${NOT_UNKNOWN}
       )
       AND ${NOT_UNKNOWN}
     `;

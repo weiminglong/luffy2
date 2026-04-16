@@ -10,6 +10,7 @@ import {
   HandCoins,
   ShoppingBag,
   Store,
+  Coins,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useRangeStore } from "@/lib/store";
@@ -59,6 +60,12 @@ interface LifetimeData {
   avg_tps_7d: number;
   avg_user_tps_7d: number;
   avg_fees_per_sec_7d: number;
+}
+
+interface TvlData {
+  current_total_usd: number;
+  prior_7d_total_usd: number;
+  by_project: Array<{ project: string; tvl_usd: number; pools: number }>;
 }
 
 interface HealthPoint {
@@ -111,6 +118,12 @@ export function HeroSection() {
   const lifetimeQ = useQuery({
     queryKey: ["lifetime"],
     queryFn: () => fetcher<Envelope<LifetimeData>>(`/api/v1/tempo/lifetime`),
+    select: (r) => r.data,
+  });
+
+  const tvlQ = useQuery({
+    queryKey: ["tvl", range],
+    queryFn: () => fetcher<Envelope<TvlData>>(`/api/v1/tempo/tvl?range=${range}`),
     select: (r) => r.data,
   });
 
@@ -261,16 +274,20 @@ export function HeroSection() {
               />
               <KPICard
                 variant="hero"
-                label="Stablecoin Supply"
-                value={d.stablecoin_supply.value}
+                label="Total TVL"
+                value={tvlQ.data?.current_total_usd ?? 0}
                 delta={
-                  d.stablecoin_supply.prior === 0 && d.stablecoin_supply.value > 0
-                    ? Infinity
-                    : d.stablecoin_supply.change_pct
+                  tvlQ.data && tvlQ.data.prior_7d_total_usd > 0
+                    ? ((tvlQ.data.current_total_usd - tvlQ.data.prior_7d_total_usd) /
+                        tvlQ.data.prior_7d_total_usd) * 100
+                    : tvlQ.data && tvlQ.data.current_total_usd > 0
+                      ? Infinity
+                      : 0
                 }
                 format={(n) => fmtUSD(n)}
                 accent="stablecoin"
                 sparkline={sparklines.stablecoin}
+                animate={false}
               />
               <KPICard
                 variant="hero"
@@ -290,9 +307,9 @@ export function HeroSection() {
         </div>
 
         {/* Secondary strip */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 overflow-x-auto">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 overflow-x-auto">
           {secondaryQ.isPending || !s ? (
-            Array.from({ length: 6 }).map((_, i) => (
+            Array.from({ length: 7 }).map((_, i) => (
               <SkeletonCard key={i} variant="kpi" height={80} />
             ))
           ) : (
@@ -344,6 +361,14 @@ export function HeroSection() {
                 format={(n) => fmtNum(n)}
                 accent="positive"
                 icon={<Store className="h-4 w-4" />}
+              />
+              <KPICard
+                variant="compact"
+                label="Stablecoin Supply"
+                value={d?.stablecoin_supply.value ?? 0}
+                format={(n) => fmtUSD(n)}
+                accent="stablecoin"
+                icon={<Coins className="h-4 w-4" />}
               />
             </>
           )}
