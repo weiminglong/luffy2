@@ -50,14 +50,12 @@ interface TopTokensData {
 interface PriceToken {
   token_symbol: string;
   price_usd: number;
-  volume_usd: number;
   [key: string]: unknown;
 }
 interface PricePoint {
   block_date: string;
   token_symbol: string;
   price_usd: number;
-  volume_usd: number;
 }
 interface PricesData {
   timeseries: PricePoint[];
@@ -234,13 +232,6 @@ export function TokenSection() {
             ? `$${n.toFixed(4)}`
             : fmtUSD(n, { compact: false });
       },
-    },
-    {
-      key: "volume_usd",
-      label: "24h Volume",
-      align: "right",
-      barKey: "volume_usd",
-      format: (v) => fmtUSD(Number(v)),
     },
   ];
 

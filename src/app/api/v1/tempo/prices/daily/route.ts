@@ -10,31 +10,30 @@ export async function GET(req: NextRequest) {
 
   try {
     // Daily prices for tracked tokens
+    // Columns: block_date, symbol, price, source, contract_address, decimals
     const tsSql = `
       SELECT
         block_date,
-        token_symbol,
-        price_usd,
-        volume_usd
+        symbol,
+        price
       FROM agent.tempo_prices_day
       WHERE block_date >= today() - ${days}
-        AND token_symbol NOT IN ('UNKNOWN', '')
-        AND price_usd > 0
-      ORDER BY block_date, token_symbol
+        AND symbol NOT IN ('UNKNOWN', '')
+        AND price > 0
+      ORDER BY block_date, symbol
     `;
 
     // Latest prices snapshot
     const latestSql = `
       SELECT
-        token_symbol,
-        argMax(price_usd, block_date) AS price_usd,
-        argMax(volume_usd, block_date) AS volume_usd
+        symbol,
+        argMax(price, block_date) AS price
       FROM agent.tempo_prices_day
       WHERE block_date >= today() - 7
-        AND token_symbol NOT IN ('UNKNOWN', '')
-        AND price_usd > 0
-      GROUP BY token_symbol
-      ORDER BY volume_usd DESC
+        AND symbol NOT IN ('UNKNOWN', '')
+        AND price > 0
+      GROUP BY symbol
+      ORDER BY price DESC
       LIMIT 20
     `;
 
@@ -45,15 +44,13 @@ export async function GET(req: NextRequest) {
 
     const timeseries = tsRows.map((r) => ({
       block_date: epochToDate(r.block_date as number | string | null),
-      token_symbol: str(r.token_symbol),
-      price_usd: num(r.price_usd),
-      volume_usd: num(r.volume_usd),
+      token_symbol: str(r.symbol),
+      price_usd: num(r.price),
     }));
 
     const latest = latestRows.map((r) => ({
-      token_symbol: str(r.token_symbol),
-      price_usd: num(r.price_usd),
-      volume_usd: num(r.volume_usd),
+      token_symbol: str(r.symbol),
+      price_usd: num(r.price),
     }));
 
     const freshness = timeseries.length
