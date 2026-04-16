@@ -114,17 +114,22 @@ export function Footer() {
               </div>
             </div>
             <div className="hidden md:block h-8 w-px bg-border-subtle" />
-            <div className="text-xs text-text-muted">
-              Built with Tempo data via{" "}
-              <Link
-                href="https://asksurf.ai"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-text-secondary hover:text-text-primary transition-colors"
-              >
-                Surf
-              </Link>
-              {now ? ` · last refreshed at ${now}` : ""}
+            <div className="text-xs text-text-muted space-y-0.5">
+              <div>
+                Built with Tempo data via{" "}
+                <Link
+                  href="https://asksurf.ai"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-text-secondary hover:text-text-primary transition-colors"
+                >
+                  Surf
+                </Link>
+                {now ? ` · last refreshed at ${now}` : ""}
+              </div>
+              <div className="text-[10px] text-text-muted/70">
+                All dates are UTC · Auto-refreshes every 90s · Server cache 5–60 min per section
+              </div>
             </div>
           </div>
 

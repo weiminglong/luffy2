@@ -4,7 +4,8 @@ import { jsonOK, jsonErr, num } from "@/lib/api";
 
 export const runtime = "nodejs";
 
-export async function GET(_req: NextRequest) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function GET(req: NextRequest) {
   try {
     const sql = `
       SELECT cohort_week, activity_week, cohort_size, active_users, retention_rate

@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetcher } from "@/lib/fetcher";
 import { fmtNum, cn } from "@/lib/utils";
+import { TEMPO_LAUNCH_DATE } from "@/lib/constants";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { Card, CardHeader, CardTitle } from "@/components/ui/Card";
 import { SkeletonCard } from "@/components/ui/SkeletonCard";
@@ -32,6 +33,7 @@ interface Envelope<T> {
 }
 
 const MAX_DISPLAY_WEEKS = 8;
+const MS_PER_WEEK = 7 * 86_400_000;
 
 function cellBg(rate: number): string {
   const alpha = 0.08 + (Math.max(0, Math.min(100, rate)) / 100) * 0.82;
@@ -45,6 +47,14 @@ function fmtCohortLabel(d: string): string {
   return parsed.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+/** Has this activity week already elapsed (i.e. should we expect data)? */
+function isActivityWeekPast(cohortWeek: string, weeksSince: number): boolean {
+  const cohortMs = new Date(cohortWeek + "T00:00:00Z").getTime();
+  if (Number.isNaN(cohortMs)) return false;
+  const activityEndMs = cohortMs + (weeksSince + 1) * MS_PER_WEEK;
+  return activityEndMs <= Date.now();
+}
+
 export function RetentionSection() {
   const { data, isPending: isLoading, isError, refetch } = useQuery({
     queryKey: ["retention-cohorts"],
@@ -53,7 +63,6 @@ export function RetentionSection() {
   });
 
   const {
-    maxWeeks,
     cappedLabel,
     weekKeys,
     cohorts,
@@ -63,16 +72,35 @@ export function RetentionSection() {
   } = useMemo(() => {
     const rawCohorts = data?.cohorts ?? [];
     const rawMax = data?.max_weeks_since ?? 0;
-    const capped = rawMax > MAX_DISPLAY_WEEKS;
-    const mw = Math.min(rawMax, MAX_DISPLAY_WEEKS);
+
+    // Cap columns to the lesser of data max, MAX_DISPLAY_WEEKS, and weeks
+    // since launch so we don't show a wall of future-empty columns.
+    const weeksSinceLaunch = Math.floor(
+      (Date.now() - new Date(TEMPO_LAUNCH_DATE + "T00:00:00Z").getTime()) / MS_PER_WEEK
+    );
+    const mw = Math.min(rawMax, MAX_DISPLAY_WEEKS, Math.max(1, weeksSinceLaunch));
+    const capped = rawMax > mw;
     const keys = Array.from({ length: mw + 1 }, (_, i) => i);
 
+    // For averages, include 0% for past weeks with no data point so the
+    // average reflects reality instead of only counting non-zero cohorts.
     const byWeek: Record<number, number[]> = {};
     for (const c of rawCohorts) {
-      for (const p of c.points) {
-        if (p.weeks_since === 0) continue;
-        if (!byWeek[p.weeks_since]) byWeek[p.weeks_since] = [];
-        byWeek[p.weeks_since].push(p.retention_rate);
+      const pointByW = new Map<number, CohortPoint>();
+      for (const p of c.points) pointByW.set(p.weeks_since, p);
+
+      for (const w of keys) {
+        if (w === 0) continue; // skip self-week
+        const p = pointByW.get(w);
+        const past = isActivityWeekPast(c.cohort_week, w);
+        if (p) {
+          if (!byWeek[w]) byWeek[w] = [];
+          byWeek[w].push(p.retention_rate);
+        } else if (past) {
+          // Activity week elapsed but no data → 0% retention
+          if (!byWeek[w]) byWeek[w] = [];
+          byWeek[w].push(0);
+        }
       }
     }
     const avg: Record<number, number | null> = {};
@@ -109,7 +137,6 @@ export function RetentionSection() {
     const recent = sortedByDate.length ? sortedByDate[sortedByDate.length - 1] : null;
 
     return {
-      maxWeeks: mw,
       cappedLabel: capped,
       weekKeys: keys,
       cohorts: sortedByDate,
@@ -212,15 +239,36 @@ export function RetentionSection() {
                             </div>
                             {weekKeys.map((w) => {
                               const p = pointByWeek.get(w);
-                              if (!p) {
+                              const past = isActivityWeekPast(c.cohort_week, w);
+
+                              // Determine the effective rate:
+                              // W0 = 100% by definition (self-week)
+                              // Past week with no data = 0% retention
+                              // Future week = no data yet (gray cell)
+                              let rate: number | null = null;
+                              let activeUsers = 0;
+                              if (p) {
+                                rate = p.retention_rate;
+                                activeUsers = p.active_users;
+                              } else if (w === 0) {
+                                rate = 100;
+                                activeUsers = c.cohort_size;
+                              } else if (past) {
+                                rate = 0;
+                                activeUsers = 0;
+                              }
+
+                              if (rate === null) {
+                                // Future week — show empty placeholder
                                 return (
                                   <div
                                     key={w}
                                     className="h-10 w-full rounded-md bg-bg-card/40 border border-border-subtle/40"
+                                    title="Not yet elapsed"
                                   />
                                 );
                               }
-                              const rate = p.retention_rate;
+
                               const textCls =
                                 rate >= 60 ? "text-white" : "text-text-primary";
                               return (
@@ -232,7 +280,7 @@ export function RetentionSection() {
                                   )}
                                   style={{ backgroundColor: cellBg(rate) }}
                                   title={`${rate.toFixed(1)}% — ${fmtNum(
-                                    p.active_users
+                                    activeUsers
                                   )} / ${fmtNum(c.cohort_size)} active`}
                                 >
                                   {rate.toFixed(0)}%
@@ -324,7 +372,13 @@ export function RetentionSection() {
                   </div>
 
                   <p className="text-[11px] leading-relaxed text-text-muted pt-2">
-                    Tempo is 3 weeks old — retention data will expand over time.
+                    {(() => {
+                      const weeks = Math.floor(
+                        (Date.now() - new Date(TEMPO_LAUNCH_DATE + "T00:00:00Z").getTime()) /
+                          (7 * 86_400_000)
+                      );
+                      return `Tempo is ${weeks} week${weeks !== 1 ? "s" : ""} old — retention data will expand over time.`;
+                    })()}
                   </p>
                 </div>
               )}

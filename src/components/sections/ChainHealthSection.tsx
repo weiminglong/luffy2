@@ -302,28 +302,6 @@ export function ChainHealthSection() {
         </ChartCard>
 
         <ChartCard
-          title="DEX Volume Trend"
-          subtitle="Daily DEX volume in USD"
-          loading={isLoading}
-          empty={empty}
-        >
-          <TimeseriesChart
-            data={ts}
-            xKey="block_date"
-            series={[
-              {
-                key: "dex_volume_usd",
-                label: "DEX Volume",
-                color: "#6C5CE7",
-                type: "area",
-              },
-            ]}
-            yFormatter={(n) => fmtUSD(n)}
-            xFormatter={xFmt}
-          />
-        </ChartCard>
-
-        <ChartCard
           title="Contract Deployments"
           subtitle="New smart contracts deployed per day (trace-derived)"
           loading={isLoading}

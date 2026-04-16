@@ -4,25 +4,26 @@ import { jsonOK, jsonErr, num, str } from "@/lib/api";
 
 export const runtime = "nodejs";
 
-export async function GET(_req: NextRequest) {
+export async function GET(req: NextRequest) {
+  const sql = `
+    SELECT
+      pair_address,
+      argMax(token0_symbol, block_date)     AS token0_symbol,
+      argMax(token1_symbol, block_date)     AS token1_symbol,
+      argMax(token0_balance, block_date)    AS token0_balance,
+      argMax(token1_balance, block_date)    AS token1_balance,
+      argMax(token0_usd, block_date)        AS token0_usd,
+      argMax(token1_usd, block_date)        AS token1_usd,
+      argMax(tvl_usd, block_date)           AS tvl_usd,
+      argMax(project, block_date)           AS project
+    FROM agent.tempo_uniswap_v2_tvl
+    WHERE block_date >= today() - 7
+    GROUP BY pair_address
+    ORDER BY tvl_usd DESC
+    LIMIT 15
+  `;
+
   try {
-    const sql = `
-      SELECT
-        pair_address,
-        argMax(token0_symbol, block_date)     AS token0_symbol,
-        argMax(token1_symbol, block_date)     AS token1_symbol,
-        argMax(token0_balance, block_date)    AS token0_balance,
-        argMax(token1_balance, block_date)    AS token1_balance,
-        argMax(token0_usd, block_date)        AS token0_usd,
-        argMax(token1_usd, block_date)        AS token1_usd,
-        argMax(tvl_usd, block_date)           AS tvl_usd,
-        argMax(project, block_date)           AS project
-      FROM agent.tempo_uniswap_v2_tvl
-      WHERE block_date >= today() - 7
-      GROUP BY pair_address
-      ORDER BY tvl_usd DESC
-      LIMIT 15
-    `;
     const rows = await querySurf(sql, { ttl: 1800 });
 
     const pools = rows.map((r) => ({
@@ -36,10 +37,16 @@ export async function GET(_req: NextRequest) {
       tvl_usd: num(r.tvl_usd),
       project: str(r.project),
     }));
-
     return jsonOK({ pools }, "7d");
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "unknown error";
+    console.error("[tempo/dex/pools] request failed", {
+      route: "/api/v1/tempo/dex/pools",
+      url: req.url,
+      sql,
+      error: msg,
+      stack: err instanceof Error ? err.stack : undefined,
+    });
     return jsonErr(msg);
   }
 }

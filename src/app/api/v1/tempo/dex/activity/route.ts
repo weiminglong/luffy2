@@ -9,18 +9,21 @@ export async function GET(req: NextRequest) {
   const days = rangeToDays(range);
 
   try {
+    // Use tempo_dex_trades_daily for broader DEX coverage (pre-aggregated
+    // across all tracked DEX protocols, not just tempo_dex_swaps).
     const tsSql = `
       SELECT
         block_date,
-        COUNT(*)                        AS swaps,
-        COUNT(DISTINCT user_address)    AS traders,
-        SUM(amount_in_usd)              AS volume
-      FROM agent.tempo_dex_swaps
+        SUM(trade_count)            AS swaps,
+        SUM(unique_traders)         AS traders,
+        SUM(volume_usd)             AS volume
+      FROM agent.tempo_dex_trades_daily
       WHERE block_date >= today() - ${days}
       GROUP BY block_date
       ORDER BY block_date
     `;
 
+    // Top pairs still from dex_swaps for pair-level detail
     const topPairsSql = `
       SELECT
         concat(token_in_symbol, '/', token_out_symbol) AS pair,

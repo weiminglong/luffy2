@@ -10,7 +10,6 @@ import {
   HandCoins,
   ShoppingBag,
   Store,
-  Coins,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useRangeStore } from "@/lib/store";
@@ -30,10 +29,16 @@ interface OverviewData {
   dau: KPI;
   txs: KPI;
   fees: KPI;
-  dex_volume: KPI;
-  dex_swaps: KPI;
   stablecoin_supply: KPI;
   latest_date: string;
+}
+
+/** Return delta for display, or undefined when the comparison is meaningless. */
+function safeDelta(kpi: KPI): number | undefined {
+  if (kpi.prior === 0) return undefined;
+  const pct = kpi.change_pct;
+  if (!Number.isFinite(pct) || Math.abs(pct) > 500) return undefined;
+  return pct;
 }
 
 interface SecondaryData {
@@ -60,12 +65,6 @@ interface LifetimeData {
   avg_tps_7d: number;
   avg_user_tps_7d: number;
   avg_fees_per_sec_7d: number;
-}
-
-interface TvlData {
-  current_total_usd: number;
-  prior_7d_total_usd: number;
-  by_project: Array<{ project: string; tvl_usd: number; pools: number }>;
 }
 
 interface HealthPoint {
@@ -121,12 +120,6 @@ export function HeroSection() {
     select: (r) => r.data,
   });
 
-  const tvlQ = useQuery({
-    queryKey: ["tvl", range],
-    queryFn: () => fetcher<Envelope<TvlData>>(`/api/v1/tempo/tvl?range=${range}`),
-    select: (r) => r.data,
-  });
-
   const d = overviewQ.data;
   const s = secondaryQ.data;
 
@@ -136,7 +129,7 @@ export function HeroSection() {
       dau: toSpark(ts, "dau"),
       txs: toSpark(ts, "total_txs"),
       stablecoin: toSpark(ts, "stablecoin_transfer_volume"),
-      dex: toSpark(ts, "dex_volume_usd"),
+      fees: toSpark(ts, "total_fees_usd"),
     };
   }, [healthQ.data]);
 
@@ -250,11 +243,7 @@ export function HeroSection() {
                 variant="hero"
                 label="Daily Active Users"
                 value={d.dau.value}
-                delta={
-                  d.dau.prior === 0 && d.dau.value > 0
-                    ? Infinity
-                    : d.dau.change_pct
-                }
+                delta={safeDelta(d.dau)}
                 format={(n) => fmtNum(n)}
                 accent="tempo"
                 sparkline={sparklines.dau}
@@ -263,53 +252,37 @@ export function HeroSection() {
                 variant="hero"
                 label="24h Transactions"
                 value={d.txs.value}
-                delta={
-                  d.txs.prior === 0 && d.txs.value > 0
-                    ? Infinity
-                    : d.txs.change_pct
-                }
+                delta={safeDelta(d.txs)}
                 format={(n) => fmtNum(n)}
                 accent="positive"
                 sparkline={sparklines.txs}
               />
               <KPICard
                 variant="hero"
-                label="Total TVL"
-                value={tvlQ.data?.current_total_usd ?? 0}
-                delta={
-                  tvlQ.data && tvlQ.data.prior_7d_total_usd > 0
-                    ? ((tvlQ.data.current_total_usd - tvlQ.data.prior_7d_total_usd) /
-                        tvlQ.data.prior_7d_total_usd) * 100
-                    : tvlQ.data && tvlQ.data.current_total_usd > 0
-                      ? Infinity
-                      : 0
-                }
+                label="Stablecoin Supply"
+                value={d.stablecoin_supply.value}
+                delta={safeDelta(d.stablecoin_supply)}
                 format={(n) => fmtUSD(n)}
                 accent="stablecoin"
                 sparkline={sparklines.stablecoin}
-                animate={false}
               />
               <KPICard
                 variant="hero"
-                label="24h DEX Volume"
-                value={d.dex_volume.value}
-                delta={
-                  d.dex_volume.prior === 0 && d.dex_volume.value > 0
-                    ? Infinity
-                    : d.dex_volume.change_pct
-                }
+                label="24h Fees"
+                value={d.fees.value}
+                delta={safeDelta(d.fees)}
                 format={(n) => fmtUSD(n)}
-                accent="tempo"
-                sparkline={sparklines.dex}
+                accent="positive"
+                sparkline={sparklines.fees}
               />
             </>
           )}
         </div>
 
         {/* Secondary strip */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 overflow-x-auto">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 overflow-x-auto">
           {secondaryQ.isPending || !s ? (
-            Array.from({ length: 7 }).map((_, i) => (
+            Array.from({ length: 6 }).map((_, i) => (
               <SkeletonCard key={i} variant="kpi" height={80} />
             ))
           ) : (
@@ -362,14 +335,6 @@ export function HeroSection() {
                 accent="positive"
                 icon={<Store className="h-4 w-4" />}
               />
-              <KPICard
-                variant="compact"
-                label="Stablecoin Supply"
-                value={d?.stablecoin_supply.value ?? 0}
-                format={(n) => fmtUSD(n)}
-                accent="stablecoin"
-                icon={<Coins className="h-4 w-4" />}
-              />
             </>
           )}
         </div>
@@ -379,7 +344,7 @@ export function HeroSection() {
             <LiveIndicator />
             {d?.latest_date ? (
               <span className="hidden sm:inline text-text-muted">
-                · Block date {d.latest_date}
+                · Block date {d.latest_date} (UTC)
               </span>
             ) : null}
           </div>
